@@ -78,21 +78,26 @@ def get_player_data(player_id):
             all_rows = worksheet.get_all_values()
             
             for row_idx, row in enumerate(all_rows, start=1):
+                # ถ้าแถวสั้นเกินไปให้ข้าม
                 if not row or len(row) < 2:
                     continue
                 
+                # ดึงค่าคอลัมน์ B (Index 1)
                 cell_code = str(row[1]).strip().upper()
                 
                 if cell_code == search_id:
-                    code_id = str(row[1]).strip()
-                    code_name = str(row[2]).strip() if len(row) > 2 and str(row[2]).strip() else code_id
+                    # ปรับความยาวของ row ให้มีอย่างน้อย 9 คอลัมน์กัน Index Out of Range
+                    padded_row = row + [""] * (9 - len(row)) if len(row) < 9 else row
+                    
+                    code_id = str(padded_row[1]).strip()
+                    code_name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else code_id
                     role = parse_role_from_prefix(code_id)
 
-                    total_score = safe_int(row[4]) if len(row) > 4 else 0
-                    player_luck = safe_float(row[5]) if len(row) > 5 else 0.0
-                    last_play_date = str(row[6]).strip() if len(row) > 6 else ""
-                    free_plays_used = safe_int(row[7]) if len(row) > 7 else 0
-                    bought_plays_used = safe_int(row[8]) if len(row) > 8 else 0
+                    total_score = safe_int(padded_row[4])      # คอลัมน์ E
+                    player_luck = safe_float(padded_row[5])    # คอลัมน์ F
+                    last_play_date = str(padded_row[6]).strip() # คอลัมน์ G
+                    free_plays_used = safe_int(padded_row[7])   # คอลัมน์ H
+                    bought_plays_used = safe_int(padded_row[8]) # คอลัมน์ I
 
                     return {
                         "sheet_name": worksheet.title,
@@ -110,7 +115,6 @@ def get_player_data(player_id):
         print(f"Error reading sheets: {e}")
         
     return None
-
 
 def update_player_data(sheet_name, row_idx, score_to_add, new_luck, last_play_date, free_plays_used, bought_plays_used):
     """ อัปเดตข้อมูลกลับลง Google Sheet ตรงตามชื่อชีตและแถวของผู้เล่น """
