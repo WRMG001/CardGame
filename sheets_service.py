@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
@@ -35,15 +36,29 @@ def parse_role_from_prefix(player_id):
 
 
 def get_client():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    json_path = os.path.join(base_dir, "credentials.json")
+    creds_json = os.getenv('GOOGLE_CREDENTIALS')
     
-    try:
-        creds = Credentials.from_service_account_file(json_path, scopes=SCOPES)
-        return gspread.authorize(creds)
-    except Exception as e:
-        print(f"❌ Error initializing Google Sheets Client: {e}")
-        return None
+    if creds_json:
+        try:
+            creds_dict = json.loads(creds_json)
+            if 'private_key' in creds_dict:
+                creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+            creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+            return gspread.authorize(creds)
+        except Exception as e:
+            print(f"❌ Error loading credentials from ENV: {e}")
+            return None
+    else:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        json_path = os.path.join(base_dir, "credentials.json")
+        if not os.path.exists(json_path):
+             return None
+        try:
+            creds = Credentials.from_service_account_file(json_path, scopes=SCOPES)
+            return gspread.authorize(creds)
+        except Exception as e:
+            print(f"❌ Error initializing Google Sheets Client: {e}")
+            return None
 
 
 def safe_int(val, default=0):
@@ -68,6 +83,7 @@ def get_player_data(player_id):
     """ ค้นหารหัสผู้เล่นจากทุก ชีต ในไฟล์ """
     client = get_client()
     if not client:
+        print("❌ Cannot get gspread client")
         return None
 
     try:
@@ -78,21 +94,25 @@ def get_player_data(player_id):
             all_rows = worksheet.get_all_values()
             
             for row_idx, row in enumerate(all_rows, start=1):
+                # ถ้าแถวไม่มีข้อมูล หรือมีไม่ถึง Column B (index 1) ให้ข้าม
                 if not row or len(row) < 2:
                     continue
                 
                 cell_code = str(row[1]).strip().upper()
                 
                 if cell_code == search_id:
-                    code_id = str(row[1]).strip()
-                    code_name = str(row[2]).strip() if len(row) > 2 and str(row[2]).strip() else code_id
+                    # ป้องกัน IndexError เติมช่องว่างให้ครบ 9 คอลัมน์ (A ถึง I)
+                    padded_row = row + [""] * (9 - len(row)) if len(row) < 9 else row
+                    
+                    code_id = str(padded_row[1]).strip()
+                    code_name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else code_id
                     role = parse_role_from_prefix(code_id)
 
-                    total_score = safe_int(row[4]) if len(row) > 4 else 0
-                    player_luck = safe_float(row[5]) if len(row) > 5 else 0.0
-                    last_play_date = str(row[6]).strip() if len(row) > 6 else ""
-                    free_plays_used = safe_int(row[7]) if len(row) > 7 else 0
-                    bought_plays_used = safe_int(row[8]) if len(row) > 8 else 0
+                    total_score = safe_int(padded_row[4])       # Col E (Index 4)
+                    player_luck = safe_float(padded_row[5])     # Col F (Index 5)
+                    last_play_date = str(padded_row[6]).strip()  # Col G (Index 6)
+                    free_plays_used = safe_int(padded_row[7])    # Col H (Index 7)
+                    bought_plays_used = safe_int(padded_row[8])  # Col I (Index 8)
 
                     return {
                         "sheet_name": worksheet.title,
@@ -107,13 +127,12 @@ def get_player_data(player_id):
                         "bought_plays_used": bought_plays_used,
                     }
     except Exception as e:
-        print(f"Error reading sheets: {e}")
+        print(f"❌ Error reading sheets: {e}")
         
     return None
 
 
 def update_player_data(sheet_name, row_idx, score_to_add, new_luck, last_play_date, free_plays_used, bought_plays_used):
-    """ อัปเดตข้อมูลกลับลง Google Sheet ตรงตามชื่อชีตและแถวของผู้เล่น """
     client = get_client()
     if not client:
         return False
@@ -132,7 +151,6 @@ def update_player_data(sheet_name, row_idx, score_to_add, new_luck, last_play_da
         sheet.update_cell(row_idx, 8, free_plays_used)
         sheet.update_cell(row_idx, 9, bought_plays_used)
 
-        print(f"✅ บันทึกสำเร็จ [{sheet_name} Row {row_idx}]: คะแนนรวม = {updated_score}")
         return True
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดต Sheet: {e}")
@@ -140,10 +158,8 @@ def update_player_data(sheet_name, row_idx, score_to_add, new_luck, last_play_da
 
 
 def get_leaderboard(limit=100, period="all"):
-    """ ดึงอันดับผู้เล่นจากทุกชีตแบบอ้างอิงตำแหน่งคอลัมน์จริง """
     client = get_client()
     if not client:
-        print("❌ ไม่สามารถเชื่อมต่อ Google Sheets Client ได้")
         return []
 
     all_players = []
@@ -154,15 +170,12 @@ def get_leaderboard(limit=100, period="all"):
         for worksheet in spreadsheet.worksheets():
             try:
                 all_rows = worksheet.get_all_values()
-                
-                # ข้ามบรรทัด Header (วนลูปตั้งแต่อ่านแถวข้อมูลจริง)
                 for row in all_rows:
                     if not row or len(row) < 5:
                         continue
                     
                     code_id = str(row[1]).strip()
-                    # ถ้าช่อง Code ไม่ใช่รูปแบบ ID ผู้เล่น ให้ข้าม
-                    if not code_id or code_id.upper() in ["CODE", "PLAYER_ID", "ID", "รหัส"]:
+                    if not code_id or code_id.upper() in ["CODE", "PLAYER_ID", "ID", "รหัส", "รหัสตัวละคร"]:
                         continue
 
                     code_name = str(row[2]).strip() if len(row) > 2 and str(row[2]).strip() else code_id
@@ -179,7 +192,6 @@ def get_leaderboard(limit=100, period="all"):
             except Exception as e:
                 print(f"⚠️ Warning reading sheet {worksheet.title}: {e}")
 
-        # จัดอันดับตามคะแนน total_score จากมากไปน้อย
         all_players.sort(key=lambda x: x["total_score"], reverse=True)
         return all_players[:limit]
 
