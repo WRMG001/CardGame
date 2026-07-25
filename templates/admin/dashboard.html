@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 30px auto; color: #fff; text-align: center;">
+
+  <h2>⚙️ Admin Control Dashboard</h2>
+
+  {% if msg %}
+    <div style="background: #333; padding: 10px; border-radius: 6px; margin-bottom: 15px; color: #00f5d4;">
+      {{ msg }}
+    </div>
+  {% endif %}
+
+  <!-- ตั้งค่า Event Luck -->
+  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; text-align: left; margin-bottom: 20px;">
+    <h3 style="color: #ffb703; margin-top: 0;">🎉 ตั้งค่า Event & System</h3>
+    <form method="POST">
+      <input type="hidden" name="action" value="update_event">
+      
+      <label style="display: block; margin-bottom: 8px;">ค่า Event Luck (%):</label>
+      <input type="number" step="0.1" name="event_luck" value="{{ event_luck }}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
+
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; cursor: pointer;">
+        <input type="checkbox" name="show_luck" {% if show_luck %}checked{% endif %}>
+        แสดงค่า Luck ให้ผู้เล่นเห็นในหน้าเกม
+      </label>
+
+      <button type="submit" style="width: 100%; padding: 10px; background: #00b4d8; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        บันทึกการตั้งค่า
+      </button>
+    </form>
+  </div>
+
+  <!-- ปรับคะแนนผู้เล่น -->
+  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; text-align: left;">
+    <h3 style="color: #ffb703; margin-top: 0;">💎 ปรับคะแนนผู้เล่น (เพิ่ม/หัก)</h3>
+    <form method="POST">
+      <input type="hidden" name="action" value="modify_score">
+
+      <label style="display: block; margin-bottom: 8px;">รหัสผู้เล่น (เช่น P001, C014):</label>
+      <input type="text" name="target_player_id" placeholder="P001" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
+
+      <label style="display: block; margin-bottom: 8px;">คะแนนที่ต้องการปรับ (ใส่ติดลบเพื่อหัก เช่น -100):</label>
+      <input type="number" name="score_change" placeholder="100" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
+
+      <button type="submit" style="width: 100%; padding: 10px; background: #e63946; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+        ยืนยันการปรับคะแนน
+      </button>
+    </form>
+  </div>
+
+  <div style="margin-top: 25px;">
+    <a href="/home">
+      <button style="padding: 10px 20px; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        🏠 กลับหน้าหลัก
+      </button>
+    </a>
+  </div>
+
+</div>
+{% endblock %}

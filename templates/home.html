@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="text-align: center; margin-top: 30px;">
+
+  <!-- 🎴 โลโก้และหัวข้อเกม -->
+  <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+    <span>🎴</span> Card Game
+  </h1>
+
+  <!-- 👤 1. แสดง Welcome ตามด้วย Code name จาก Column B -->
+  <h2 style="margin-top: 20px; font-size: 26px;">
+    Welcome {{ player_name }}
+  </h2>
+
+  <!-- 🆔 2. แสดง Code จาก Column A -->
+  <p style="color: #ccc; margin: 6px 0; font-size: 16px;">
+    Code : <strong>{{ player_id }}</strong>
+  </p>
+
+  <!-- 🎭 3. แสดง Role จากการเช็กตัวย่อ Prefix -->
+  <p style="color: #ccc; margin: 6px 0; font-size: 16px;">
+    Role : <strong>{{ role }}</strong>
+  </p>
+
+  <hr style="border: 0.5px solid #444; margin: 25px 0;">
+
+  <!-- 🔘 เมนูปุ่มกด -->
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 220px; margin: 0 auto;">
+    <a href="/game">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+        🎴 เปิดไพ่
+      </button>
+    </a>
+    
+    <a href="/ranking">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+        🏆 ตารางคะแนน
+      </button>
+    </a>
+
+    <a href="/history">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+        📜 ประวัติการเล่น
+      </button>
+    </a>
+
+    <!-- 🔒 แสดงปุ่ม Admin Dashboard เฉพาะ ID ที่ระบุไว้เท่านั้น (ปรับเปลี่ยน ID แอดมินตรงนี้ได้เลย) -->
+    {% if player_id.upper() in ['ADMIN01', 'P001', 'H001'] %}
+      <a href="/admin">
+        <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffb703; color: #000; font-weight: bold;">
+          ⚙️ Admin Dashboard
+        </button>
+      </a>
+    {% endif %}
+
+    <a href="/logout">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+        🚪 Logout
+      </button>
+    </a>
+
+  </div>
+
+</div>
+{% endblock %}

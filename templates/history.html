@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="max-width: 550px; margin: 30px auto; color: #fff; text-align: center;">
+
+  <h2>📜 ประวัติการเล่นย้อนหลัง</h2>
+  <p style="color: #aaa; font-size: 14px;">ผู้เล่น: <strong>{{ player_name }}</strong> ({{ player_id }})</p>
+
+  <div style="background: #1e1e24; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); margin-top: 20px;">
+    
+    {% if history_logs %}
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        {% for log in history_logs %}
+          <div style="background: #282834; border-radius: 8px; padding: 12px 15px; text-align: left; border-left: 4px solid #00f5d4;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px;">
+              <span>🕒 {{ log.date }}</span>
+              <span style="color: #ffb703; font-weight: bold;">คะแนนสุทธิ: {{ "{:,}".format(log.final_score) }}</span>
+            </div>
+            
+            <div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px;">
+              🃏 ไพ่ที่ได้: <span style="color: #00b4d8;">{{ log.cards }}</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ccc;">
+              <span>คอมโบ: <strong>{{ log.combo }}</strong></span>
+              <span style="color: #00f5d4;">+{{ log.score_gained }} แต้ม</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div style="color: #888; padding: 30px 0;">
+        <span style="font-size: 36px;">🃏</span>
+        <p style="margin-top: 10px;">ยังไม่มีประวัติการสุ่มไพ่ ลองเข้าเล่นสักรอบได้เลย!</p>
+      </div>
+    {% endif %}
+
+  </div>
+
+  <div style="margin-top: 25px;">
+    <a href="/home">
+      <button style="padding: 10px 20px; font-size: 15px; font-weight: bold; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        🏠 กลับหน้าหลัก
+      </button>
+    </a>
+  </div>
+
+</div>
+{% endblock %}
