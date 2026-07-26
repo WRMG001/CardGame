@@ -4,58 +4,56 @@
 <div style="text-align: center; margin-top: 30px;">
 
   <!-- 🎴 โลโก้และหัวข้อเกม -->
-  <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-    <span>🎴</span> Card Game
+  <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
+    <span style="font-size: 32px;">🎴</span> <strong>Card Game</strong>
   </h1>
+  <p style="color: #888; font-size: 14px; margin-top: 0; margin-bottom: 24px;">Version 0.1</p>
 
-  <!-- 👤 1. แสดง Welcome ตามด้วย Code name จาก Column B -->
-  <h2 style="margin-top: 20px; font-size: 26px;">
-    Welcome {{ player_name }}
-  </h2>
-
-  <!-- 🆔 2. แสดง Code จาก Column A -->
-  <p style="color: #ccc; margin: 6px 0; font-size: 16px;">
-    Code : <strong>{{ player_id }}</strong>
-  </p>
-
-  <!-- 🎭 3. แสดง Role จากการเช็กตัวย่อ Prefix -->
-  <p style="color: #ccc; margin: 6px 0; font-size: 16px;">
-    Role : <strong>{{ role }}</strong>
-  </p>
-
-  <hr style="border: 0.5px solid #444; margin: 25px 0;">
+  <!-- 💳 กล่อง Card สไตล์ภาพแรก -->
+  <div style="background-color: #1e232a; border: 1px solid #2d333b; border-radius: 12px; padding: 20px; max-width: 320px; margin: 0 auto 24px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+    <h2 style="margin: 0 0 10px 0; font-size: 24px; color: #4caf50;">
+      Welcome {{ player_name }}
+    </h2>
+    <p style="color: #ccc; margin: 4px 0; font-size: 15px;">
+      Code: <strong>{{ player_id }}</strong> | Role: <strong>{{ role }}</strong>
+    </p>
+    <p style="color: #ffb703; margin: 10px 0 0 0; font-size: 16px; font-weight: bold;">
+      คะแนนสะสม: {{ session.get('total_score', 0) }} แต้ม
+    </p>
+  </div>
 
   <!-- 🔘 เมนูปุ่มกด -->
-  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 220px; margin: 0 auto;">
-    <a href="/game">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 260px; margin: 0 auto;">
+    <a href="/game" style="text-decoration: none;">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
         🎴 เปิดไพ่
       </button>
     </a>
     
-    <a href="/ranking">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+    <a href="/ranking" style="text-decoration: none;">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
         🏆 ตารางคะแนน
       </button>
     </a>
 
-    <a href="/history">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+    <a href="/history" style="text-decoration: none;">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
         📜 ประวัติการเล่น
       </button>
     </a>
 
-    <!-- 🔒 แสดงปุ่ม Admin Dashboard เฉพาะ ID ที่ระบุไว้เท่านั้น (ปรับเปลี่ยน ID แอดมินตรงนี้ได้เลย) -->
+    <!-- 🔒 แสดงปุ่ม Admin Dashboard เฉพาะ ID ที่กำหนด -->
     {% if player_id.upper() in ['ADMIN01', 'P001', 'H001'] %}
-      <a href="/admin">
+      <a href="/admin" style="text-decoration: none;">
         <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffb703; color: #000; font-weight: bold;">
           ⚙️ Admin Dashboard
         </button>
       </a>
     {% endif %}
 
-    <a href="/logout">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e0e0e0; font-weight: bold;">
+    <!-- 🚪 ปุ่ม Logout สีแดงตามภาพแรก -->
+    <a href="/logout" style="text-decoration: none;">
+      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e63946; color: #ffffff; font-weight: bold; transition: 0.2s;">
         🚪 Logout
       </button>
     </a>
