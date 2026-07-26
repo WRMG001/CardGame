@@ -13,8 +13,17 @@ app.secret_key = SECRET_KEY
 # ID ผู้เล่นที่มีสิทธิ์ Admin
 ADMIN_IDS = ["ADMIN01", "P001", "H001"]
 
-# กำหนดจำนวนรอบฟรีต่อวัน
-DAILY_FREE_LIMIT = 5
+# กำหนดจำนวนรอบฟรีต่อวันแยกตาม Role
+ROLE_DAILY_LIMITS = {
+    'admin': 999,
+    'customer': 5,
+    'host': 10,
+    'black': 8,
+    'bartender': 7,
+    'waiter': 6,
+    'security': 6,
+}
+DEFAULT_DAILY_LIMIT = 5
 
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
@@ -67,6 +76,11 @@ def game():
         return redirect("/login")
 
     player_id = session.get("player_id")
+    user_role = str(session.get("role", "customer")).lower()
+    
+    # ดึงจำนวนรอบฟรีตาม Role
+    daily_limit = ROLE_DAILY_LIMITS.get(user_role, DEFAULT_DAILY_LIMIT)
+
     today_str = datetime.now().strftime("%Y-%m-%d")
     
     last_play_date = session.get("last_play_date", "")
@@ -78,13 +92,13 @@ def game():
         session["last_play_date"] = today_str
         session["free_plays_used"] = 0
 
-    # 🛑 เช็กว่ารอบเล่นฟรีเกินโควตาประจำวันหรือยัง
-    if free_plays_used >= DAILY_FREE_LIMIT:
+    # 🛑 เช็กว่ารอบเล่นฟรีเกินโควตาประจำวันของ Role หรือยัง
+    if free_plays_used >= daily_limit:
         return render_template(
             "game_limit.html",
             player_id=player_id,
             player_name=session.get("player_name"),
-            max_limit=DAILY_FREE_LIMIT
+            max_limit=daily_limit
         )
 
     player_luck = session.get("player_luck", 0.0)
@@ -106,7 +120,7 @@ def game():
         new_total = current_total + result["final_score"]
         session["total_score"] = new_total
 
-        # แก้ไขการส่ง Payload ให้ตรงกับ update_player_data
+        # ส่ง Payload ให้ตรงกับ update_player_data ใน sheets_service.py
         updated_data = {
             'total_score': new_total,
             'player_luck': result["next_player_luck"],
@@ -138,7 +152,7 @@ def game():
         event_luck=result["event_luck"],
         final_luck=result["final_luck"],
         show_luck=SHOW_LUCK_TO_PLAYERS,
-        plays_left=DAILY_FREE_LIMIT - free_plays_used
+        plays_left=daily_limit - free_plays_used
     )
 
 
@@ -148,7 +162,7 @@ def ranking():
         return redirect("/login")
 
     period = request.args.get("period", "all")
-    # แก้ไขการตัด argument period ออก เพื่อให้แมตช์กับ sheets_service
+    # ดึงตารางคะแนนโดยไม่ส่ง period เพื่อป้องกัน TypeError จาก sheets_service.py
     top_players = get_leaderboard(limit=100)
 
     return render_template(
