@@ -13,7 +13,7 @@ app.secret_key = SECRET_KEY
 # ID ผู้เล่นที่มีสิทธิ์ Admin
 ADMIN_IDS = ["ADMIN01", "P001", "H001"]
 
-# กำหนดจำนวนรอบฟรีต่อวัน (ปรับเปลี่ยนตัวเลขตรงนี้ได้)
+# กำหนดจำนวนรอบฟรีต่อวัน
 DAILY_FREE_LIMIT = 5
 
 EVENT_LUCK = 0.0 
@@ -102,19 +102,19 @@ def game():
     row_idx = session.get("row_idx")
 
     if sheet_name and row_idx:
-        update_player_data(
-            sheet_name=sheet_name,
-            row_idx=row_idx,
-            score_to_add=result["final_score"],
-            new_luck=result["next_player_luck"],
-            last_play_date=today_str,
-            free_plays_used=free_plays_used,
-            bought_plays_used=session.get("bought_plays_used", 0)
-        )
-        
-        # 🔑 อัปเดตคะแนนสะสมปัจจุบันใน Session ทันที
         current_total = session.get("total_score", 0)
-        session["total_score"] = current_total + result["final_score"]
+        new_total = current_total + result["final_score"]
+        session["total_score"] = new_total
+
+        # แก้ไขการส่ง Payload ให้ตรงกับ update_player_data
+        updated_data = {
+            'total_score': new_total,
+            'player_luck': result["next_player_luck"],
+            'last_play_date': today_str,
+            'free_plays_used': free_plays_used,
+            'bought_plays_used': session.get("bought_plays_used", 0)
+        }
+        update_player_data(sheet_name, row_idx, updated_data)
 
     # 4. บันทึกประวัติการเล่นลง Database (game.db)
     log_game_play(
@@ -148,8 +148,8 @@ def ranking():
         return redirect("/login")
 
     period = request.args.get("period", "all")
-    # ดึงตารางคะแนนแบบสดใหม่ที่คัดเฉพาะคนที่มีคะแนน > 0
-    top_players = get_leaderboard(limit=100, period=period)
+    # แก้ไขการตัด argument period ออก เพื่อให้แมตช์กับ sheets_service
+    top_players = get_leaderboard(limit=100)
 
     return render_template(
         "ranking.html",
@@ -207,22 +207,21 @@ def admin_dashboard():
                 player_info = get_player_data(target_id)
                 
                 if player_info:
-                    update_player_data(
-                        sheet_name=player_info["sheet_name"],
-                        row_idx=player_info["row_idx"],
-                        score_to_add=score_change,
-                        new_luck=player_info["player_luck"],
-                        last_play_date=player_info["last_play_date"],
-                        free_plays_used=player_info["free_plays_used"],
-                        bought_plays_used=player_info["bought_plays_used"]
-                    )
+                    new_score = player_info["total_score"] + score_change
+                    updated_data = {
+                        'total_score': new_score,
+                        'player_luck': player_info["player_luck"],
+                        'last_play_date': player_info["last_play_date"],
+                        'free_plays_used': player_info["free_plays_used"],
+                        'bought_plays_used': player_info["bought_plays_used"]
+                    }
+                    update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
                     msg = f"✅ ปรับคะแนนของ {target_id} ({score_change}) สำเร็จ!"
                 else:
                     msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
             except ValueError:
                 msg = "❌ กรุณากรอกจำนวนคะแนนเป็นตัวเลข"
 
-    # เปลี่ยนจาก "admin/dashboard.html" เป็น "dashboard.html"
     return render_template(
         "dashboard.html",
         event_luck=EVENT_LUCK,
