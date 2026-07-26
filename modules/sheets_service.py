@@ -185,40 +185,42 @@ def get_leaderboard(limit=10):
     except Exception as e:
         print(f"❌ เกิด Error ขณะดึง Leaderboard: {e}")
         return []
- def get_all_players():
-    """ดึงข้อมูลผู้เล่นทั้งหมดจากทุก Sheet เพื่อนำมาแสดงในตาราง All Players"""
-    all_players = []
-    
-    # วนลูปอ่านข้อมูลผู้เล่นจากทุก Sheet
-    for sheet_name in SHEET_NAMES:
-        try:
-            sheet = spreadsheet.worksheet(sheet_name)
-            data = sheet.get_all_records()
-            
-            for row in data:
-                player_id = str(row.get('รหัสตัวละคร', '')).strip()
-                name = str(row.get('Code name', '')).strip()
-                
-                if player_id:
-                    # ดึงค่าคะแนนและรอบที่เล่น
-                    try:
-                        score = int(row.get('Total Score', 0))
-                    except (ValueError, TypeError):
-                        score = 0
 
-                    try:
-                        plays_used = int(row.get('Free Plays', 0))
-                    except (ValueError, TypeError):
-                        plays_used = 0
+# 4. ฟังก์ชันดึงข้อมูลผู้เล่นทั้งหมด
+def get_all_players():
+    """ดึงข้อมูลผู้เล่นทั้งหมดจากทุก Sheet เพื่อนำมาแสดงในตาราง All Players"""
+    client = get_client()
+    if not client:
+        return []
+
+    all_players = []
+    try:
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        for worksheet in spreadsheet.worksheets():
+            all_rows = worksheet.get_all_values()
+            if not all_rows or len(all_rows) < 2:
+                continue
+
+            # วนลูปอ่านข้อมูลบรรทัดถัดจากหัวตาราง (Row 2 เป็นต้นไป)
+            for row in all_rows[1:]:
+                if not row or len(row) < 2:
+                    continue
+
+                player_id = str(row[1]).strip()
+                if player_id:
+                    padded_row = row + [""] * (8 - len(row)) if len(row) < 8 else row
+                    name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else player_id
+                    score = safe_int(padded_row[4])
+                    plays_used = safe_int(padded_row[7])
 
                     all_players.append({
                         'player_id': player_id,
                         'name': name,
                         'total_score': score,
                         'free_plays_used': plays_used,
-                        'sheet_name': sheet_name
+                        'sheet_name': worksheet.title
                     })
-        except Exception as e:
-            print(f"Error fetching players from sheet {sheet_name}: {e}")
-            
+    except Exception as e:
+        print(f"❌ เกิด Error ขณะดึงข้อมูล All Players: {e}")
+
     return all_players
