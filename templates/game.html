@@ -2,10 +2,7 @@
 
 {% block content %}
 <style>
-  /* Perspective สำหรับทำ Flip Animation */
-  .card-container {
-    perspective: 1000px;
-  }
+  .card-container { perspective: 1000px; }
   .card-inner {
     position: relative;
     width: 85px;
@@ -13,9 +10,7 @@
     transition: transform 0.6s ease-in-out;
     transform-style: preserve-3d;
   }
-  .card-container.flipped .card-inner {
-    transform: rotateY(180deg);
-  }
+  .card-container.flipped .card-inner { transform: rotateY(180deg); }
   .card-front, .card-back {
     position: absolute;
     width: 100%;
@@ -30,14 +25,12 @@
     box-sizing: border-box;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
   }
-  /* หลังไพ่ */
   .card-back {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     border: 2px solid #ffb703;
     color: #fff;
     justify-content: center;
   }
-  /* หน้าไพ่ */
   .card-front {
     background: #ffffff;
     border: 1px solid #d1d5db;
@@ -49,17 +42,14 @@
   <h2>🎴 เปิดไพ่ลุ้นโชค</h2>
   <p style="color: #aaa; margin-top: 0;">ผู้เล่น: <strong>{{ player_name }}</strong> ({{ player_id }})</p>
 
-  <!-- การ์ด 3 ใบพร้อม Animation -->
+  <!-- ไพ่ 3 ใบ -->
   <div style="display: flex; justify-content: center; gap: 15px; margin: 25px 0;">
     {% for card in cards %}
       <div class="card-container flipped">
         <div class="card-inner">
-          <!-- ด้านหลังไพ่ -->
           <div class="card-back">
             <span style="font-size: 24px;">🎴</span>
           </div>
-
-          <!-- ด้านหน้าไพ่ -->
           {% if 'Joker' in card or '🃏' in card %}
             <div class="card-front" style="border: 2px solid #ffb703; color: #7209b7;">
               <div style="align-self: flex-start; font-size: 11px; font-weight: bold;">JOKER</div>
@@ -83,7 +73,7 @@
     {% endfor %}
   </div>
 
-  <!-- Combo & คะแนน -->
+  <!-- Result Box -->
   <div style="background: #2b2b36; padding: 15px; border-radius: 8px; max-width: 320px; margin: 0 auto 20px auto;">
     <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: {{ combo }}</h3>
     <p style="font-size: 18px; margin: 5px 0;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">+{{ final_score }}</strong></p>
@@ -93,13 +83,24 @@
     <p style="color: #888; font-size: 14px;">ค่า Luck ปัจจุบัน: {{ final_luck }}%</p>
   {% endif %}
 
-  <!-- ปุ่มกดต่อ -->
-  <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px;">
-    <a href="/game" id="playBtnLink" onclick="return handlePlayClick(event)">
-      <button id="playBtn" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-        🔄 เปิดไพ่อีกรอบ
-      </button>
-    </a>
+  <!-- Action Buttons -->
+  <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
+    {% if plays_left > 0 %}
+      <a href="/game" id="playBtnLink" onclick="return handlePlayClick(event)">
+        <button id="playBtn" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer;">
+          🔄 เปิดไพ่อีกรอบ
+        </button>
+      </a>
+    {% elif can_buy_more %}
+      <form action="/buy_play" method="POST" style="display: inline-block;">
+        <button type="submit" onclick="playSound('flip')" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #e63946; color: white; border: none; border-radius: 6px; cursor: pointer;">
+          💳 เสีย 1 แต้มเพื่อเล่นต่อ (สิทธิ์ซื้อวันนี้: {{ bought_count }}/{{ max_buy_limit }})
+        </button>
+      </form>
+    {% else %}
+      <p style="color: #ff4d6d; font-weight: bold; width: 100%;">โควตาการเล่นประจำวันของคุณหมดแล้ว</p>
+    {% endif %}
+
     <a href="/home" id="homeBtnLink">
       <button id="homeBtn" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
         🏠 กลับหน้าหลัก
@@ -109,7 +110,6 @@
 </div>
 
 <script>
-  // Web Audio API สำหรับเสียงสังเคราะห์โดยไม่ต้องใช้ไฟล์ .mp3
   function playSound(type) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -126,9 +126,9 @@
       osc.stop(ctx.currentTime + 0.1);
     } else if (type === 'win') {
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
-      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
       osc.start();
@@ -136,7 +136,6 @@
     }
   }
 
-  // เล่นเสียงชนะถ้าได้คอมโบมากกว่า High Card
   window.addEventListener('DOMContentLoaded', () => {
     const combo = "{{ combo }}";
     if (combo !== "High Card") {
@@ -155,10 +154,12 @@
     const btn = document.getElementById('playBtn');
     const homeBtn = document.getElementById('homeBtn');
 
-    btn.innerText = '⏳ กำลังสุ่มไพ่...';
-    btn.style.background = '#6c757d';
-    btn.style.cursor = 'not-allowed';
-    btn.style.opacity = '0.7';
+    if (btn) {
+      btn.innerText = '⏳ กำลังสุ่มไพ่...';
+      btn.style.background = '#6c757d';
+      btn.style.cursor = 'not-allowed';
+      btn.style.opacity = '0.7';
+    }
 
     if (homeBtn) {
       homeBtn.style.opacity = '0.5';
