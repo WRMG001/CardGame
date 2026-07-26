@@ -8,6 +8,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', '')
+
 def clean_private_key(key: str) -> str:
     if not key:
         return key
@@ -25,10 +27,9 @@ def get_client():
             creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
             return gspread.authorize(creds)
         except Exception as e:
-            print(f"Error reading sheets: {e}")
+            print(f"❌ Error initializing credentials from ENV: {e}")
             return None
             
-    # สำรองกรณีรันบน Local
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     json_path = os.path.join(base_dir, "credentials.json")
     if os.path.exists(json_path):
@@ -36,26 +37,71 @@ def get_client():
             creds = Credentials.from_service_account_file(json_path, scopes=SCOPES)
             return gspread.authorize(creds)
         except Exception as e:
-            print(f"Error reading sheets from file: {e}")
+            print(f"❌ Error reading sheets from file: {e}")
             return None
 
     return None
 
-# ==========================================
-# ฟังก์ชันดึงข้อมูลที่ modules/auth.py เรียกใช้
-# ==========================================
+def safe_int(val, default=0):
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
 
-def get_player_data():
+def safe_float(val, default=0.0):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def parse_role_from_prefix(code_id):
+    code = code_id.strip().upper()
+    if code.startswith('ADMIN'):
+        return 'admin'
+    elif code.startswith('STU'):
+        return 'student'
+    return 'player'
+
+def get_player_data(player_id):
+    """ ค้นหารหัสผู้เล่นจากทุกชีตในไฟล์ Google Sheet """
     client = get_client()
     if not client:
-        print("Failed to initialize Google Sheets client.")
-        return []
-    
+        print("❌ ไม่สามารถสร้าง gspread client ได้")
+        return None
+
     try:
-        # ใส่ชื่อ Google Sheet ของคุณตรงนี้ (หรือใช้ SPREADSHEET_ID จาก env)
-        spreadsheet_name = os.getenv('SPREADSHEET_NAME', 'cardgame-sheet') 
-        sheet = client.open(spreadsheet_name).sheet1
-        return sheet.get_all_records()
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        search_id = player_id.strip().upper()
+        
+        for worksheet in spreadsheet.worksheets():
+            all_rows = worksheet.get_all_values()
+            
+            for row_idx, row in enumerate(all_rows, start=1):
+                if not row or len(row) < 2:
+                    continue
+                
+                cell_code = str(row[1]).strip().upper()
+                
+                if cell_code == search_id:
+                    padded_row = row + [""] * (9 - len(row)) if len(row) < 9 else row
+                    
+                    code_id = str(padded_row[1]).strip()
+                    code_name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else code_id
+                    role = parse_role_from_prefix(code_id)
+
+                    return {
+                        "sheet_name": worksheet.title,
+                        "row_idx": row_idx,
+                        "player_id": code_id,
+                        "player_name": code_name,
+                        "role": role,
+                        "total_score": safe_int(padded_row[4]),
+                        "player_luck": safe_float(padded_row[5]),
+                        "last_play_date": str(padded_row[6]).strip(),
+                        "free_plays_used": safe_int(padded_row[7]),
+                        "bought_plays_used": safe_int(padded_row[8]),
+                    }
     except Exception as e:
-        print(f"Error fetching player data: {e}")
-        return []
+        print(f"❌ เกิด Error ขณะอ่าน Sheet: {e}")
+        
+    return None
