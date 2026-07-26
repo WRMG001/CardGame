@@ -1,63 +1,46 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="text-align: center; margin-top: 30px;">
+<div style="max-width: 450px; margin: 40px auto; text-align: center; color: #fff; font-family: 'Kanit', sans-serif;">
 
-  <!-- 🎴 โลโก้และหัวข้อเกม -->
-  <h1 style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px;">
-    <span style="font-size: 32px;">🎴</span> <strong>Card Game</strong>
-  </h1>
-  <p style="color: #888; font-size: 14px; margin-top: 0; margin-bottom: 24px;">Version 0.1</p>
-
-  <!-- 💳 กล่อง Card สไตล์ภาพแรก -->
-  <div style="background-color: #1e232a; border: 1px solid #2d333b; border-radius: 12px; padding: 20px; max-width: 320px; margin: 0 auto 24px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-    <h2 style="margin: 0 0 10px 0; font-size: 24px; color: #4caf50;">
-      Welcome {{ player_name }}
-    </h2>
-    <p style="color: #ccc; margin: 4px 0; font-size: 15px;">
-      Code: <strong>{{ player_id }}</strong> | Role: <strong>{{ role }}</strong>
-    </p>
-    <p style="color: #ffb703; margin: 10px 0 0 0; font-size: 16px; font-weight: bold;">
-      คะแนนสะสม: {{ session.get('total_score', 0) }} แต้ม
-    </p>
+  <div style="margin-bottom: 25px;">
+    <div style="font-size: 40px;">🎴</div>
+    <h1 style="margin: 5px 0; font-size: 28px; letter-spacing: 1px;">Card Game</h1>
+    <span style="color: #777; font-size: 12px;">Version 0.2</span>
   </div>
 
-  <!-- 🔘 เมนูปุ่มกด -->
-  <div style="display: flex; flex-direction: column; gap: 12px; max-width: 260px; margin: 0 auto;">
+  <div style="background: #1e1e24; border-radius: 16px; padding: 20px; border: 1px solid #2d2d3a; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+    <h3 style="color: #00f5d4; margin: 0 0 5px 0; font-size: 20px;">Welcome {{ player_name }}</h3>
+    <p style="color: #aaa; margin: 0 0 10px 0; font-size: 13px;">Code: <strong>{{ player_id }}</strong> | Role: {{ role }}</p>
+    <div style="font-size: 16px; font-weight: bold; color: #ffb703;">
+      คะแนนสะสม: {{ session.get('total_score', 0) }} แต้ม
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
     <a href="/game" style="text-decoration: none;">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
-        🎴 เปิดไพ่
+      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #ffffff; color: #111; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        🎴 เปิดไพ่ (เสีย 1 แต้ม/รอบ)
       </button>
     </a>
-    
+
     <a href="/ranking" style="text-decoration: none;">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
-        🏆 ตารางคะแนน
+      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #ffffff; color: #111; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        🏆 ตารางคะแนน & รายชื่อ
       </button>
     </a>
 
     <a href="/history" style="text-decoration: none;">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffffff; color: #000; font-weight: bold; transition: 0.2s;">
+      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #ffffff; color: #111; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
         📜 ประวัติการเล่น
       </button>
     </a>
 
-    <!-- 🔒 แสดงปุ่ม Admin Dashboard เฉพาะ ID ที่กำหนด -->
-    {% if player_id.upper() in ['ADMIN01', 'P001', 'H001'] %}
-      <a href="/admin" style="text-decoration: none;">
-        <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #ffb703; color: #000; font-weight: bold;">
-          ⚙️ Admin Dashboard
-        </button>
-      </a>
-    {% endif %}
-
-    <!-- 🚪 ปุ่ม Logout สีแดงตามภาพแรก -->
-    <a href="/logout" style="text-decoration: none;">
-      <button style="width: 100%; padding: 12px; font-size: 16px; cursor: pointer; border-radius: 6px; border: none; background: #e63946; color: #ffffff; font-weight: bold; transition: 0.2s;">
+    <a href="/logout" style="text-decoration: none; margin-top: 10px;">
+      <button style="width: 100%; padding: 12px; font-size: 15px; font-weight: bold; background: #ff4d6d; color: white; border: none; border-radius: 10px; cursor: pointer;">
         🚪 Logout
       </button>
     </a>
-
   </div>
 
 </div>
