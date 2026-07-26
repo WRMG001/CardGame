@@ -185,3 +185,40 @@ def get_leaderboard(limit=10):
     except Exception as e:
         print(f"❌ เกิด Error ขณะดึง Leaderboard: {e}")
         return []
+ def get_all_players():
+    """ดึงข้อมูลผู้เล่นทั้งหมดจากทุก Sheet เพื่อนำมาแสดงในตาราง All Players"""
+    all_players = []
+    
+    # วนลูปอ่านข้อมูลผู้เล่นจากทุก Sheet
+    for sheet_name in SHEET_NAMES:
+        try:
+            sheet = spreadsheet.worksheet(sheet_name)
+            data = sheet.get_all_records()
+            
+            for row in data:
+                player_id = str(row.get('รหัสตัวละคร', '')).strip()
+                name = str(row.get('Code name', '')).strip()
+                
+                if player_id:
+                    # ดึงค่าคะแนนและรอบที่เล่น
+                    try:
+                        score = int(row.get('Total Score', 0))
+                    except (ValueError, TypeError):
+                        score = 0
+
+                    try:
+                        plays_used = int(row.get('Free Plays', 0))
+                    except (ValueError, TypeError):
+                        plays_used = 0
+
+                    all_players.append({
+                        'player_id': player_id,
+                        'name': name,
+                        'total_score': score,
+                        'free_plays_used': plays_used,
+                        'sheet_name': sheet_name
+                    })
+        except Exception as e:
+            print(f"Error fetching players from sheet {sheet_name}: {e}")
+            
+    return all_players
