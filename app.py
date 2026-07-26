@@ -64,15 +64,20 @@ def game():
     player_id = session.get("player_id")
     
     # 1. ดึงข้อมูลล่าสุดจาก Google Sheets เพื่อความแม่นยำ
-    player_info = get_player_data(player_id)
-    if player_info:
-        plays_used = player_info.get("free_plays_used", 0)
-        total_score = player_info.get("total_score", 0)
-        session["free_plays_used"] = plays_used
-        session["total_score"] = total_score
-    else:
-        plays_used = session.get("free_plays_used", 0)
-        total_score = session.get("total_score", 0)
+    try:
+        player_info = get_player_data(player_id)
+        if player_info:
+            plays_used = int(player_info.get("free_plays_used", 0))
+            total_score = int(player_info.get("total_score", 0))
+            session["free_plays_used"] = plays_used
+            session["total_score"] = total_score
+        else:
+            plays_used = int(session.get("free_plays_used", 0))
+            total_score = int(session.get("total_score", 0))
+    except Exception as e:
+        print(f"Error fetching player data: {e}")
+        plays_used = int(session.get("free_plays_used", 0))
+        total_score = int(session.get("total_score", 0))
 
     today_str = datetime.now().strftime("%Y-%m-%d")
     last_play_date = session.get("last_play_date", "")
@@ -83,17 +88,18 @@ def game():
         session["last_play_date"] = today_str
         session["free_plays_used"] = 0
 
-    # 🛑 เช็กว่ากดครบ 3 ครั้งประจำวันหรือยัง (ถ้าครบแล้ว ตัดจบส่งหน้า game_limit.html ทันที)
+    # 🛑 ถ้าเล่นครบหรือเกินโควตา 3 ครั้งแล้ว ให้เด้งหน้า game_limit.html ทันที
     if plays_used >= DAILY_PLAY_LIMIT:
         return render_template(
             "game_limit.html",
+            player_id=player_id,
             player_name=session.get("player_name", "Player"),
             max_limit=DAILY_PLAY_LIMIT,
             total_score=total_score
         )
 
-    # --- ส่วนของการเล่นเกม (จะทำงานเฉพาะตอนยังเล่นไม่ครบ 3 ครั้ง) ---
-    player_luck = session.get("player_luck", 0.0)
+    # --- ส่วนของการเล่นเกม (ทำเฉพาะตอนยังเล่นไม่ครบ 3 ครั้ง) ---
+    player_luck = float(session.get("player_luck", 0.0))
     result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
 
     # เพิ่มจำนวนครั้งที่เล่น
@@ -110,29 +116,35 @@ def game():
     row_idx = session.get("row_idx")
 
     if sheet_name and row_idx:
-        updated_data = {
-            'total_score': new_total,
-            'player_luck': result["next_player_luck"],
-            'last_play_date': today_str,
-            'free_plays_used': plays_used
-        }
-        update_player_data(sheet_name, row_idx, updated_data)
+        try:
+            updated_data = {
+                'total_score': new_total,
+                'player_luck': result["next_player_luck"],
+                'last_play_date': today_str,
+                'free_plays_used': plays_used
+            }
+            update_player_data(sheet_name, row_idx, updated_data)
+        except Exception as e:
+            print(f"Error updating sheet: {e}")
 
     # บันทึก History
-    log_game_play(
-        player_id=player_id,
-        cards=result["cards"],
-        combo_name=result["combo"],
-        score_gained=result["final_score"] - PLAY_COST_POINTS,
-        final_score=new_total
-    )
+    try:
+        log_game_play(
+            player_id=player_id,
+            cards=result["cards"],
+            combo_name=result["combo"],
+            score_gained=result["final_score"] - PLAY_COST_POINTS,
+            final_score=new_total
+        )
+    except Exception as e:
+        print(f"Error logging history: {e}")
 
     remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
 
     return render_template(
         "game.html",
         player_id=player_id,
-        player_name=session.get("player_name"),
+        player_name=session.get("player_name", "Player"),
         cards=result["cards"],
         combo=result["combo"],
         score=result["score"],
