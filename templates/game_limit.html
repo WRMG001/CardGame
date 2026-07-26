@@ -1,16 +1,17 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 450px; margin: 50px auto; text-align: center; color: #fff;">
+<div style="max-width: 450px; margin: 50px auto; text-align: center; color: #fff; font-family: sans-serif;">
 
   <div style="background: #1e1e24; border-radius: 12px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid #ff4d6d;">
     
     <div style="font-size: 50px; margin-bottom: 10px;">⏳</div>
     
-    <h2 style="color: #ff4d6d; margin-bottom: 10px;">โควตาการเล่นประจำวันหมดแล้ว</h2>
+    <h2 style="color: #ff4d6d; margin-bottom: 10px;">สิทธิ์การเปิดไพ่หมดแล้ว</h2>
     
     <p style="color: #ccc; font-size: 15px; line-height: 1.6;">
-      คุณ <strong>{{ player_name }}</strong> ใช้สิทธิ์เปิดไพ่ครบ <strong>{{ max_limit }} ครั้ง</strong> ของวันนี้แล้ว
+      สวัสดีครับคุณ <strong>{{ player_name }}</strong><br>
+      คุณใช้สิทธิ์เปิดไพ่ครบ <strong>{{ max_limit }} รอบ</strong> ประจำวันนี้แล้ว
     </p>
 
     <div style="background: #2b2b36; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 14px; color: #aaa;">
