@@ -63,32 +63,16 @@ def game():
 
     player_id = session.get("player_id")
     
-    # 1. ดึงข้อมูลล่าสุดจาก Google Sheets เพื่อความแม่นยำ
+    # 1. ดึงข้อมูลจำนวนครั้งที่เล่นไปแล้ว
     try:
         player_info = get_player_data(player_id)
-        if player_info:
-            plays_used = int(player_info.get("free_plays_used", 0))
-            total_score = int(player_info.get("total_score", 0))
-            session["free_plays_used"] = plays_used
-            session["total_score"] = total_score
-        else:
-            plays_used = int(session.get("free_plays_used", 0))
-            total_score = int(session.get("total_score", 0))
-    except Exception as e:
-        print(f"Error fetching player data: {e}")
+        plays_used = int(player_info.get("free_plays_used", 0)) if player_info else int(session.get("free_plays_used", 0))
+        total_score = int(player_info.get("total_score", 0)) if player_info else int(session.get("total_score", 0))
+    except Exception:
         plays_used = int(session.get("free_plays_used", 0))
         total_score = int(session.get("total_score", 0))
 
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    last_play_date = session.get("last_play_date", "")
-
-    # 🛑 รีเซ็ตสิทธิ์เมื่อขึ้นวันใหม่
-    if last_play_date != today_str:
-        plays_used = 0
-        session["last_play_date"] = today_str
-        session["free_plays_used"] = 0
-
-    # 🛑 ถ้าเล่นครบหรือเกินโควตา 3 ครั้งแล้ว ให้เด้งหน้า game_limit.html ทันที
+    # 2. เช็กโควตา "ก่อน" เริ่มเล่นเกม ถ้าครบ/เกินแล้ว ให้ส่งไปหน้าสิทธิ์หมดทันที
     if plays_used >= DAILY_PLAY_LIMIT:
         return render_template(
             "game_limit.html",
@@ -98,47 +82,26 @@ def game():
             total_score=total_score
         )
 
-    # --- ส่วนของการเล่นเกม (ทำเฉพาะตอนยังเล่นไม่ครบ 3 ครั้ง) ---
+    # 3. เล่นเกมและเพิ่มสิทธิ์การเล่น
     player_luck = float(session.get("player_luck", 0.0))
     result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
 
-    # เพิ่มจำนวนครั้งที่เล่น
     plays_used += 1
     session["free_plays_used"] = plays_used
-
-    # คำนวณคะแนน
+    
     new_total = total_score + result["final_score"] - PLAY_COST_POINTS
     session["total_score"] = new_total
-    session["player_luck"] = result["next_player_luck"]
 
-    # อัปเดต Google Sheet
-    sheet_name = session.get("sheet_name")
-    row_idx = session.get("row_idx")
-
-    if sheet_name and row_idx:
-        try:
-            updated_data = {
-                'total_score': new_total,
-                'player_luck': result["next_player_luck"],
-                'last_play_date': today_str,
-                'free_plays_used': plays_used
-            }
-            update_player_data(sheet_name, row_idx, updated_data)
-        except Exception as e:
-            print(f"Error updating sheet: {e}")
-
-    # บันทึก History
+    # อัปเดตลง Database / Google Sheet แบบปลอดภัย
     try:
-        log_game_play(
-            player_id=player_id,
-            cards=result["cards"],
-            combo_name=result["combo"],
-            score_gained=result["final_score"] - PLAY_COST_POINTS,
-            final_score=new_total
-        )
+        update_player_data(session.get("sheet_name"), session.get("row_idx"), {
+            'total_score': new_total,
+            'free_plays_used': plays_used
+        })
     except Exception as e:
-        print(f"Error logging history: {e}")
+        print(f"Sheet update error: {e}")
 
+    # คำนวณสิทธิ์ที่เหลืออยู่จริงๆ หลังเล่นรอบนี้
     remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
 
     return render_template(
@@ -147,17 +110,10 @@ def game():
         player_name=session.get("player_name", "Player"),
         cards=result["cards"],
         combo=result["combo"],
-        score=result["score"],
         final_score=result["final_score"],
-        cost=PLAY_COST_POINTS,
         total_score=new_total,
-        player_luck=result["player_luck"],
-        event_luck=EVENT_LUCK,
-        final_luck=result["final_luck"],
-        show_luck=SHOW_LUCK_TO_PLAYERS,
         plays_left=remaining_plays
     )
-
 
 @app.route("/ranking")
 def ranking():
