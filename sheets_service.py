@@ -1,6 +1,5 @@
 import os
 import json
-import base64
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -14,17 +13,14 @@ def get_client():
     
     if creds_env:
         try:
-            # 1. ถอดรหัสจาก Base64 ก่อน
-            try:
-                decoded_bytes = base64.b64decode(creds_env)
-                creds_dict = json.loads(decoded_bytes.decode('utf-8'))
-            except Exception:
-                # 2. ถ้ารับมาเป็น JSON ตรงๆ
-                creds_dict = json.loads(creds_env)
+            creds_dict = json.loads(creds_env)
             
-            # จัดการ \n ใน private_key เผื่อกรณีไม่ได้ใช้ Base64
+            # จัดการ private_key ให้ถูกต้อง
             if 'private_key' in creds_dict:
-                creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+                pk = creds_dict['private_key']
+                # แปลงข้อความ \n ให้กลายเป็น escape character ขึ้นบรรทัดใหม่จริง
+                pk = pk.replace('\\n', '\n')
+                creds_dict['private_key'] = pk
                 
             creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
             return gspread.authorize(creds)
