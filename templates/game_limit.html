@@ -7,36 +7,16 @@
     
     <div style="font-size: 50px; margin-bottom: 10px;">⏳</div>
     
-    <h2 style="color: #ff4d6d; margin-bottom: 10px;">สิทธิ์การเปิดไพ่ฟรีหมดแล้ว</h2>
+    <h2 style="color: #ff4d6d; margin-bottom: 10px;">โควตาการเล่นประจำวันหมดแล้ว</h2>
     
     <p style="color: #ccc; font-size: 15px; line-height: 1.6;">
-      สวัสดีครับคุณ <strong>{{ player_name }}</strong><br>
-      คุณใช้สิทธิ์เปิดไพ่ฟรีครบ <strong>{{ max_limit }} รอบ</strong> ประจำวันนี้แล้ว
+      คุณ <strong>{{ player_name }}</strong> ใช้สิทธิ์เปิดไพ่ครบ <strong>{{ max_limit }} ครั้ง</strong> ของวันนี้แล้ว
     </p>
 
-    <!-- ส่วนสิทธิ์การซื้อเล่นต่อ -->
-    {% if can_buy %}
-      <div style="background: #2b2b36; border: 1px solid #ffb703; border-radius: 8px; padding: 15px; margin: 20px 0;">
-        <p style="color: #ffb703; font-size: 14px; margin-top: 0; margin-bottom: 10px;">
-          💳 คุณสามารถใช้ <strong>{{ buy_cost }} แต้ม</strong> เพื่อซื้อสิทธิ์เล่นต่อได้<br>
-          (ซื้อไปแล้ว {{ bought_plays }}/{{ max_buy_limit }} ครั้งวันนี้ | คุณมี {{ total_score }} แต้ม)
-        </p>
-        <form action="/buy_play" method="POST">
-          <button type="submit" style="width: 100%; padding: 12px; font-size: 15px; font-weight: bold; background: #e63946; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">
-            💳 จ่าย {{ buy_cost }} แต้ม เพื่อเล่นต่อทันที
-          </button>
-        </form>
-      </div>
-    {% else %}
-      <div style="background: #2b2b36; border-radius: 8px; padding: 12px; margin: 20px 0; font-size: 14px; color: #aaa;">
-        {% if bought_plays >= max_buy_limit %}
-          ❌ คุณใช้สิทธิ์ซื้อเล่นต่อครบ {{ max_buy_limit }} ครั้ง/วัน แล้ว
-        {% else %}
-          ❌ คุณมีแต้มไม่เพียงพอสำหรับซื้อสิทธิ์เล่นต่อ (ต้องการ {{ buy_cost }} แต้ม)
-        {% endif %}
-        <br><span style="color: #ffb703;">💡 สิทธิ์จะถูกรีเซ็ตใหม่อีกครั้งในวันพรุ่งนี้!</span>
-      </div>
-    {% endif %}
+    <div style="background: #2b2b36; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 14px; color: #aaa;">
+      คะแนนสะสมปัจจุบันของคุณ: <strong style="color: #00f5d4; font-size: 18px;">{{ total_score }}</strong> แต้ม<br>
+      <span style="color: #ffb703; display: block; margin-top: 8px;">💡 สิทธิ์การเล่นจะถูกรีเซ็ตใหม่อีกครั้งในวันพรุ่งนี้!</span>
+    </div>
 
     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
       <a href="/home">
