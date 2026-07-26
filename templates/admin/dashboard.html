@@ -1,57 +1,92 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 500px; margin: 30px auto; color: #fff; text-align: center;">
+<div style="max-width: 550px; margin: 30px auto; color: #fff; font-family: sans-serif;">
 
-  <h2>⚙️ Admin Control Dashboard</h2>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <h2>⚙️ Admin Game Management</h2>
+    <p style="color: #aaa; font-size: 14px; margin-top: -5px;">
+      ผู้ดูแลระบบ: <strong style="color: #ffb703;">{{ session.get('player_id') }}</strong>
+    </p>
+  </div>
 
   {% if msg %}
-    <div style="background: #333; padding: 10px; border-radius: 6px; margin-bottom: 15px; color: #00f5d4;">
+    <div style="background: #2d3748; padding: 12px; border-radius: 8px; margin-bottom: 20px; text-align: center; color: #00f5d4; border: 1px solid #00f5d4;">
       {{ msg }}
     </div>
   {% endif %}
 
-  <!-- ตั้งค่า Event Luck -->
-  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; text-align: left; margin-bottom: 20px;">
-    <h3 style="color: #ffb703; margin-top: 0;">🎉 ตั้งค่า Event & System</h3>
+  <!-- 1. ค้นหาผู้เล่นเพื่อจัดการ -->
+  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #333;">
+    <h3 style="color: #ffb703; margin-top: 0; font-size: 18px;">🔍 ค้นหาผู้เล่น</h3>
+    <form method="POST">
+      <input type="hidden" name="action" value="search_player">
+      <div style="display: flex; gap: 10px;">
+        <input type="text" name="target_player_id" placeholder="ระบุ ID ผู้เล่น เช่น C002, P001" required style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #2a2a35; color: #fff;">
+        <button type="submit" style="padding: 10px 20px; background: #2196f3; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+          ค้นหา
+        </button>
+      </div>
+    </form>
+
+    {% if searched_player %}
+      <div style="background: #2a2a35; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #ffb703;">
+        <p style="margin: 5px 0;"><strong>ชื่อ:</strong> {{ searched_player.name }} ({{ searched_player.player_id }})</p>
+        <p style="margin: 5px 0;"><strong>คะแนนสะสม:</strong> <span style="color: #00f5d4; font-weight: bold;">{{ searched_player.total_score }}</span> แต้ม</p>
+        <p style="margin: 5px 0; font-size: 13px; color: #aaa;">
+          สิทธิ์รอบฟรีที่ใช้ไปวันนี้: {{ searched_player.free_plays_used }} | ซื้อสิทธิ์เพิ่มไปแล้ว: {{ searched_player.get('bought_plays', 0) }} ครั้ง
+        </p>
+
+        <hr style="border: 0; border-top: 1px solid #444; margin: 12px 0;">
+
+        <!-- ฟอร์มปรับคะแนน -->
+        <form method="POST" style="margin-bottom: 10px;">
+          <input type="hidden" name="action" value="modify_score">
+          <input type="hidden" name="target_player_id" value="{{ searched_player.player_id }}">
+          <label style="display: block; font-size: 13px; margin-bottom: 5px;">ปรับเพิ่ม/ลด คะแนน (ใส่ - เพื่อหักแต้ม):</label>
+          <div style="display: flex; gap: 10px;">
+            <input type="number" name="score_change" placeholder="เช่น 10 หรือ -5" required style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #555; background: #1e1e24; color: #fff;">
+            <button type="submit" style="padding: 8px 15px; background: #ffb703; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">
+              บันทึกคะแนน
+            </button>
+          </div>
+        </form>
+
+        <!-- ฟอร์มรีเซ็ตสิทธิ์ -->
+        <form method="POST" style="margin-top: 10px;">
+          <input type="hidden" name="action" value="reset_limit">
+          <input type="hidden" name="target_player_id" value="{{ searched_player.player_id }}">
+          <button type="submit" style="width: 100%; padding: 8px; background: #e63946; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
+            🔄 รีเซ็ตสิทธิ์เล่นประจำวันของผู้เล่นนี้
+          </button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- 2. ตั้งค่า Event & Luck -->
+  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; border: 1px solid #333;">
+    <h3 style="color: #ffb703; margin-top: 0; font-size: 18px;">🎉 ตั้งค่า Event & System Luck</h3>
     <form method="POST">
       <input type="hidden" name="action" value="update_event">
       
-      <label style="display: block; margin-bottom: 8px;">ค่า Event Luck (%):</label>
-      <input type="number" step="0.1" name="event_luck" value="{{ event_luck }}" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
+      <label style="display: block; margin-bottom: 8px; font-size: 14px;">ค่า Event Luck (%):</label>
+      <input type="number" step="0.1" name="event_luck" value="{{ event_luck }}" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #2a2a35; color: #fff; margin-bottom: 15px; box-sizing: border-box;">
 
-      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; cursor: pointer;">
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px; cursor: pointer; font-size: 14px;">
         <input type="checkbox" name="show_luck" {% if show_luck %}checked{% endif %}>
-        แสดงค่า Luck ให้ผู้เล่นเห็นในหน้าเกม
+        แสดงค่า Luck ให้ผู้เล่นเห็นในหน้าเปิดไพ่
       </label>
 
       <button type="submit" style="width: 100%; padding: 10px; background: #00b4d8; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-        บันทึกการตั้งค่า
+        บันทึกการตั้งค่า Event
       </button>
     </form>
   </div>
 
-  <!-- ปรับคะแนนผู้เล่น -->
-  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; text-align: left;">
-    <h3 style="color: #ffb703; margin-top: 0;">💎 ปรับคะแนนผู้เล่น (เพิ่ม/หัก)</h3>
-    <form method="POST">
-      <input type="hidden" name="action" value="modify_score">
-
-      <label style="display: block; margin-bottom: 8px;">รหัสผู้เล่น (เช่น P001, C014):</label>
-      <input type="text" name="target_player_id" placeholder="P001" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
-
-      <label style="display: block; margin-bottom: 8px;">คะแนนที่ต้องการปรับ (ใส่ติดลบเพื่อหัก เช่น -100):</label>
-      <input type="number" name="score_change" placeholder="100" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff; margin-bottom: 15px;">
-
-      <button type="submit" style="width: 100%; padding: 10px; background: #e63946; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
-        ยืนยันการปรับคะแนน
-      </button>
-    </form>
-  </div>
-
-  <div style="margin-top: 25px;">
+  <div style="text-align: center; margin-top: 25px;">
     <a href="/home">
-      <button style="padding: 10px 20px; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
+      <button style="padding: 10px 20px; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
         🏠 กลับหน้าหลัก
       </button>
     </a>
