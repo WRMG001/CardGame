@@ -9,13 +9,9 @@ SCOPES = [
 ]
 
 def clean_private_key(key: str) -> str:
-    """ จัดการเรื่อง \n ใน private_key ให้เป็น newline จริง ไม่ว่ามาในรูปแบบไหน """
     if not key:
         return key
-    # ถ้ามี \n ที่เป็นข้อความหลุดมา ให้เปลี่ยนเป็นตัวขึ้นบรรทัดใหม่จริง
-    cleaned = key.replace('\\n', '\n')
-    # ป้องกันกรณีมี newline ซ้ำซ้อน
-    return cleaned
+    return key.replace('\\n', '\n')
 
 def get_client():
     creds_env = os.getenv('GOOGLE_CREDENTIALS')
@@ -23,8 +19,6 @@ def get_client():
     if creds_env:
         try:
             creds_dict = json.loads(creds_env)
-            
-            # ทำความสะอาด private_key
             if 'private_key' in creds_dict:
                 creds_dict['private_key'] = clean_private_key(creds_dict['private_key'])
                 
@@ -46,3 +40,22 @@ def get_client():
             return None
 
     return None
+
+# ==========================================
+# ฟังก์ชันดึงข้อมูลที่ modules/auth.py เรียกใช้
+# ==========================================
+
+def get_player_data():
+    client = get_client()
+    if not client:
+        print("Failed to initialize Google Sheets client.")
+        return []
+    
+    try:
+        # ใส่ชื่อ Google Sheet ของคุณตรงนี้ (หรือใช้ SPREADSHEET_ID จาก env)
+        spreadsheet_name = os.getenv('SPREADSHEET_NAME', 'cardgame-sheet') 
+        sheet = client.open(spreadsheet_name).sheet1
+        return sheet.get_all_records()
+    except Exception as e:
+        print(f"Error fetching player data: {e}")
+        return []
