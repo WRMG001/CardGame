@@ -62,10 +62,20 @@ def game():
         return redirect("/login")
 
     player_id = session.get("player_id")
-    today_str = datetime.now().strftime("%Y-%m-%d")
     
+    # 1. ดึงข้อมูลล่าสุดจาก Google Sheets เพื่อความแม่นยำ
+    player_info = get_player_data(player_id)
+    if player_info:
+        plays_used = player_info.get("free_plays_used", 0)
+        total_score = player_info.get("total_score", 0)
+        session["free_plays_used"] = plays_used
+        session["total_score"] = total_score
+    else:
+        plays_used = session.get("free_plays_used", 0)
+        total_score = session.get("total_score", 0)
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
     last_play_date = session.get("last_play_date", "")
-    plays_used = session.get("free_plays_used", 0) # นับจำนวนครั้งที่เล่นในวันนี้
 
     # 🛑 รีเซ็ตสิทธิ์เมื่อขึ้นวันใหม่
     if last_play_date != today_str:
@@ -73,19 +83,16 @@ def game():
         session["last_play_date"] = today_str
         session["free_plays_used"] = 0
 
-    plays_left = max(0, DAILY_PLAY_LIMIT - plays_used)
-
-    # 🛑 เช็กว่ากดครบ 3 ครั้งประจำวันหรือยัง
-    if plays_left <= 0:
+    # 🛑 เช็กว่ากดครบ 3 ครั้งประจำวันหรือยัง (ถ้าครบแล้ว ตัดจบส่งหน้า game_limit.html ทันที)
+    if plays_used >= DAILY_PLAY_LIMIT:
         return render_template(
             "game_limit.html",
-            player_id=player_id,
-            player_name=session.get("player_name"),
+            player_name=session.get("player_name", "Player"),
             max_limit=DAILY_PLAY_LIMIT,
-            total_score=session.get("total_score", 0)
+            total_score=total_score
         )
 
-    # เล่นเกมสุ่มไพ่
+    # --- ส่วนของการเล่นเกม (จะทำงานเฉพาะตอนยังเล่นไม่ครบ 3 ครั้ง) ---
     player_luck = session.get("player_luck", 0.0)
     result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
 
@@ -93,9 +100,8 @@ def game():
     plays_used += 1
     session["free_plays_used"] = plays_used
 
-    # คำนวณคะแนน: คะแนนปัจจุบัน + คะแนนที่ได้จากรอบนี้ - ค่าธรรมเนียม 1 แต้ม (ยอมให้ติดลบได้)
-    current_total = session.get("total_score", 0)
-    new_total = current_total + result["final_score"] - PLAY_COST_POINTS
+    # คำนวณคะแนน
+    new_total = total_score + result["final_score"] - PLAY_COST_POINTS
     session["total_score"] = new_total
     session["player_luck"] = result["next_player_luck"]
 
@@ -121,7 +127,7 @@ def game():
         final_score=new_total
     )
 
-    remaining_plays = DAILY_PLAY_LIMIT - plays_used
+    remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
 
     return render_template(
         "game.html",
@@ -134,7 +140,7 @@ def game():
         cost=PLAY_COST_POINTS,
         total_score=new_total,
         player_luck=result["player_luck"],
-        event_luck=result["event_luck"],
+        event_luck=EVENT_LUCK,
         final_luck=result["final_luck"],
         show_luck=SHOW_LUCK_TO_PLAYERS,
         plays_left=remaining_plays
