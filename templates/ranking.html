@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 650px; margin: 30px auto; color: #fff; font-family: 'Kanit', sans-serif;">
+<div style="max-width: 650px; margin: 30px auto 80px auto; color: #fff; font-family: 'Kanit', sans-serif;">
 
   <!-- Section 1: Top 10 Leaderboard -->
   <div style="background: #1e1e24; border-radius: 16px; padding: 25px; border: 1px solid #ffb703; margin-bottom: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
@@ -38,41 +38,45 @@
     </table>
   </div>
 
-  <!-- Section 2: รายชื่อผู้เล่นทั้งหมด -->
+  <!-- Section 2: รายชื่อผู้เล่นทั้งหมด (จำกัดความสูง เลื่อนดูในกรอบ) -->
   <div style="background: #1e1e24; border-radius: 16px; padding: 25px; border: 1px solid #3a3b4c; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
     <h3 style="text-align: center; color: #00b4d8; margin-top: 0; font-size: 20px;">👥 รายชื่อผู้เล่นทั้งหมดที่กดเล่นแล้ว</h3>
 
-    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px;">
-      <thead>
-        <tr style="border-bottom: 2px solid #333; color: #00b4d8; text-align: left;">
-          <th style="padding: 10px; width: 50px;">ลำดับ</th>
-          <th style="padding: 10px;">ผู้เล่น</th>
-          <th style="padding: 10px; text-align: center;">เล่นวันนี้</th>
-          <th style="padding: 10px; text-align: right;">คะแนนรวม</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in all_players %}
-          <tr style="border-bottom: 1px solid #282833; {% if p.player_id == session.get('player_id') %}background: #253342;{% endif %}">
-            <td style="padding: 10px; color: #777;">{{ loop.index }}</td>
-            <td style="padding: 10px;">
-              <span style="font-weight: bold;">{{ p.name }}</span>
-              <span style="color: #666; font-size: 12px; display: block;">{{ p.player_id }}</span>
-            </td>
-            <td style="padding: 10px; text-align: center;">
-              <span style="background: #2b2b36; padding: 3px 8px; border-radius: 12px; color: #ffb703; font-size: 12px;">
-                {{ p.get('free_plays_used', 0) }}/3
-              </span>
-            </td>
-            <td style="padding: 10px; text-align: right; font-weight: bold; color: {% if p.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
-              {{ p.total_score }}
-            </td>
+    <!-- กรอบเลื่อนรายชื่อ -->
+    <div style="max-height: 420px; overflow-y: auto; padding-right: 5px; margin-top: 15px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead style="position: sticky; top: 0; background: #1e1e24; z-index: 2;">
+          <tr style="border-bottom: 2px solid #333; color: #00b4d8; text-align: left;">
+            <th style="padding: 10px; width: 50px;">ลำดับ</th>
+            <th style="padding: 10px;">ผู้เล่น</th>
+            <th style="padding: 10px; text-align: center;">เล่นวันนี้</th>
+            <th style="padding: 10px; text-align: right;">คะแนนรวม</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for p in all_players %}
+            <tr style="border-bottom: 1px solid #282833; {% if p.player_id == session.get('player_id') %}background: #253342;{% endif %}">
+              <td style="padding: 10px; color: #777;">{{ loop.index }}</td>
+              <td style="padding: 10px;">
+                <span style="font-weight: bold;">{{ p.name }}</span>
+                <span style="color: #666; font-size: 12px; display: block;">{{ p.player_id }}</span>
+              </td>
+              <td style="padding: 10px; text-align: center;">
+                <span style="background: #2b2b36; padding: 3px 8px; border-radius: 12px; color: #ffb703; font-size: 12px;">
+                  {{ p.get('free_plays_used', 0) }}/3
+                </span>
+              </td>
+              <td style="padding: 10px; text-align: right; font-weight: bold; color: {% if p.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
+                {{ p.total_score }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
+  <!-- ปุ่มกลับหน้าหลักแบบปกติ (ด้านล่างสุด) -->
   <div style="text-align: center; margin-top: 30px;">
     <a href="/home" style="text-decoration: none;">
       <button style="padding: 12px 25px; background: #3a3b4c; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px;">
@@ -82,4 +86,11 @@
   </div>
 
 </div>
+
+<!-- 🎈 ปุ่มกลับหน้าหลักแบบลอย (Floating Button ติดมุมขวาล่าง) -->
+<a href="/home" style="position: fixed; bottom: 25px; right: 20px; z-index: 999; text-decoration: none;">
+  <button style="padding: 10px 18px; background: #2b2b36; color: #fff; border: 1.5px solid #ffb703; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 13px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
+    🏠 หน้าหลัก
+  </button>
+</a>
 {% endblock %}
