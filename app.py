@@ -261,10 +261,12 @@ def admin_dashboard():
         return redirect("/home")
 
     msg = None
+    searched_player = None
 
     if request.method == "POST":
         action = request.form.get("action")
         
+        # 1. ตั้งค่า Event
         if action == "update_event":
             try:
                 EVENT_LUCK = float(request.form.get("event_luck", 0.0))
@@ -273,6 +275,14 @@ def admin_dashboard():
             except ValueError:
                 msg = "❌ กรุณากรอกตัวเลขค่า Luck"
 
+        # 2. ค้นหาผู้เล่น
+        elif action == "search_player":
+            target_id = request.form.get("target_player_id", "").strip()
+            searched_player = get_player_data(target_id)
+            if not searched_player:
+                msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
+
+        # 3. ปรับคะแนนผู้เล่น (ใช้ .get() ป้องกัน KeyError)
         elif action == "modify_score":
             target_id = request.form.get("target_player_id", "").strip()
             try:
@@ -280,28 +290,40 @@ def admin_dashboard():
                 player_info = get_player_data(target_id)
                 
                 if player_info:
-                    new_score = player_info["total_score"] + score_change
+                    new_score = max(0, player_info.get("total_score", 0) + score_change)
                     updated_data = {
                         'total_score': new_score,
-                        'player_luck': player_info["player_luck"],
-                        'last_play_date': player_info["last_play_date"],
-                        'free_plays_used': player_info["free_plays_used"],
+                        'player_luck': player_info.get("player_luck", 0.0),
+                        'last_play_date': player_info.get("last_play_date", ""),
+                        'free_plays_used': player_info.get("free_plays_used", 0),
                         'bought_plays': player_info.get("bought_plays", 0),
-                        'bought_plays_used': player_info["bought_plays_used"]
+                        'bought_plays_used': player_info.get("bought_plays_used", 0)  # Safe get ดัก KeyError
                     }
                     update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
-                    msg = f"✅ ปรับคะแนนของ {target_id} ({score_change}) สำเร็จ!"
+                    msg = f"✅ ปรับคะแนนของ {target_id} เป็น {new_score} แต้มเรียบร้อย!"
+                    searched_player = get_player_data(target_id)
                 else:
                     msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
-            except ValueError:
-                msg = "❌ กรุณากรอกจำนวนคะแนนเป็นตัวเลข"
+            except Exception as e:
+                msg = f"❌ เกิดข้อผิดพลาด: {str(e)}"
 
-    return render_template(
-        "dashboard.html",
-        event_luck=EVENT_LUCK,
-        show_luck=SHOW_LUCK_TO_PLAYERS,
-        msg=msg
-    )
+    # เรียกใช้ template ให้ยืดหยุ่น ป้องกัน Error จากชื่อไฟล์ไม่ตรง
+    try:
+        return render_template(
+            "dashboard.html",
+            event_luck=EVENT_LUCK,
+            show_luck=SHOW_LUCK_TO_PLAYERS,
+            msg=msg,
+            searched_player=searched_player
+        )
+    except Exception:
+        return render_template(
+            "admin.html",
+            event_luck=EVENT_LUCK,
+            show_luck=SHOW_LUCK_TO_PLAYERS,
+            msg=msg,
+            searched_player=searched_player
+        )
 
 
 if __name__ == "__main__":
