@@ -10,20 +10,24 @@ from modules.history import log_game_play, get_player_history
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
-# ID ผู้เล่นที่มีสิทธิ์ Admin
-ADMIN_IDS = ["ADMIN01", "P001", "H001"]
+# 1. Admin IDs
+ADMIN_IDS = ["ADMIN01", "ADMIN02", "ADMIN03"]
 
-# กำหนดจำนวนรอบฟรีต่อวันแยกตาม Role
+# 2. สิทธิ์เล่นฟรีรายวันตาม Role (3 ครั้ง/วัน เท่ากันหมด)
 ROLE_DAILY_LIMITS = {
     'admin': 999,
-    'customer': 5,
-    'host': 10,
-    'black': 8,
-    'bartender': 7,
-    'waiter': 6,
-    'security': 6,
+    'customer': 3,
+    'host': 3,
+    'black': 3,
+    'bartender': 3,
+    'waiter': 3,
+    'security': 3,
 }
-DEFAULT_DAILY_LIMIT = 5
+DEFAULT_DAILY_LIMIT = 3
+
+# 3. เงื่อนไขการซื้อสิทธิ์เพิ่ม
+DAILY_BUY_LIMIT = 2     # ซื้อเพิ่มได้สูงสุด 2 ครั้ง/วัน
+BUY_COST_POINTS = 2     # จ่ายครั้งละ 2 แต้ม
 
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
@@ -38,15 +42,9 @@ def index():
 def login():
     if request.method == "POST":
         player_id = request.form.get("player_id", "")
-
         if login_player(player_id):
             return redirect("/home")
-
-        return render_template(
-            "login.html",
-            error="ไม่พบ Player ID หรือรูปแบบรหัสไม่ถูกต้อง"
-        )
-
+        return render_template("login.html", error="ไม่พบ Player ID หรือรูปแบบรหัสไม่ถูกต้อง")
     return render_template("login.html")
 
 
@@ -78,40 +76,54 @@ def game():
     player_id = session.get("player_id")
     user_role = str(session.get("role", "customer")).lower()
     
-    # ดึงจำนวนรอบฟรีตาม Role
-    daily_limit = ROLE_DAILY_LIMITS.get(user_role, DEFAULT_DAILY_LIMIT)
-
+    daily_free_limit = ROLE_DAILY_LIMITS.get(user_role, DEFAULT_DAILY_LIMIT)
     today_str = datetime.now().strftime("%Y-%m-%d")
     
     last_play_date = session.get("last_play_date", "")
     free_plays_used = session.get("free_plays_used", 0)
+    bought_plays = session.get("bought_plays", 0)           # สิทธิ์ที่ซื้อเพิ่มไปแล้วในวันนี้
+    bought_plays_used = session.get("bought_plays_used", 0) # สิทธิ์ซื้อที่ใช้ไปแล้ว
 
-    # 🛑 เช็กถ้าเป็นวันใหม่ ให้รีเซ็ตจำนวนรอบที่เล่นไปแล้ว
+    # 🛑 รีเซ็ตทุกอย่างเมื่อขึ้นวันใหม่ (ไม่สะสมสิทธิ์)
     if last_play_date != today_str:
         free_plays_used = 0
+        bought_plays = 0
+        bought_plays_used = 0
         session["last_play_date"] = today_str
         session["free_plays_used"] = 0
+        session["bought_plays"] = 0
+        session["bought_plays_used"] = 0
 
-    # 🛑 เช็กว่ารอบเล่นฟรีเกินโควตาประจำวันของ Role หรือยัง
-    if free_plays_used >= daily_limit:
+    free_left = max(0, daily_free_limit - free_plays_used)
+    bought_left = max(0, bought_plays - bought_plays_used)
+
+    # 🛑 เช็กว่าหมดสิทธิ์เล่นทั้งฟรีและที่ซื้อมาหรือยัง
+    if free_left <= 0 and bought_left <= 0:
         return render_template(
             "game_limit.html",
             player_id=player_id,
             player_name=session.get("player_name"),
-            max_limit=daily_limit
+            max_limit=daily_free_limit,
+            can_buy=(bought_plays < DAILY_BUY_LIMIT), # บอก UI ว่ายังซื้อเพิ่มได้ไหม
+            buy_cost=BUY_COST_POINTS,
+            total_score=session.get("total_score", 0)
         )
 
+    # เล่นเกมสุ่มไพ่
     player_luck = session.get("player_luck", 0.0)
-
-    # 1. เล่นเกมสุ่มไพ่
     result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
 
-    # 2. เพิ่มจำนวนรอบที่เล่นและอัปเดต Session
-    free_plays_used += 1
-    session["free_plays_used"] = free_plays_used
+    # ตัดสิทธิ์ (ใช้สิทธิ์ฟรีก่อน ถ้าหมดค่อยหักสิทธิ์ซื้อ)
+    if free_left > 0:
+        free_plays_used += 1
+        session["free_plays_used"] = free_plays_used
+    else:
+        bought_plays_used += 1
+        session["bought_plays_used"] = bought_plays_used
+
     session["player_luck"] = result["next_player_luck"]
 
-    # 3. บันทึกผลลง Google Sheet และอัปเดต Session Real-time
+    # อัปเดต Google Sheet
     sheet_name = session.get("sheet_name")
     row_idx = session.get("row_idx")
 
@@ -120,17 +132,17 @@ def game():
         new_total = current_total + result["final_score"]
         session["total_score"] = new_total
 
-        # ส่ง Payload ให้ตรงกับ update_player_data ใน sheets_service.py
         updated_data = {
             'total_score': new_total,
             'player_luck': result["next_player_luck"],
             'last_play_date': today_str,
             'free_plays_used': free_plays_used,
-            'bought_plays_used': session.get("bought_plays_used", 0)
+            'bought_plays': bought_plays,
+            'bought_plays_used': bought_plays_used
         }
         update_player_data(sheet_name, row_idx, updated_data)
 
-    # 4. บันทึกประวัติการเล่นลง Database (game.db)
+    # บันทึก History
     log_game_play(
         player_id=player_id,
         cards=result["cards"],
@@ -138,6 +150,8 @@ def game():
         score_gained=result["score"],
         final_score=result["final_score"]
     )
+
+    total_plays_left = (daily_free_limit - free_plays_used) + (bought_plays - bought_plays_used)
 
     return render_template(
         "game.html",
@@ -152,8 +166,54 @@ def game():
         event_luck=result["event_luck"],
         final_luck=result["final_luck"],
         show_luck=SHOW_LUCK_TO_PLAYERS,
-        plays_left=daily_limit - free_plays_used
+        plays_left=total_plays_left
     )
+
+
+@app.route("/buy_play", methods=["POST"])
+def buy_play():
+    """Route สำหรับหัก 2 แต้ม เพื่อซื้อสิทธิ์เล่นเพิ่ม 1 ครั้ง (จำกัดไม่เกิน 2 ครั้ง/วัน)"""
+    if "player_id" not in session:
+        return redirect("/login")
+
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    last_play_date = session.get("last_play_date", "")
+    
+    if last_play_date != today_str:
+        session["free_plays_used"] = 0
+        session["bought_plays"] = 0
+        session["bought_plays_used"] = 0
+        session["last_play_date"] = today_str
+
+    bought_plays = session.get("bought_plays", 0)
+    current_score = session.get("total_score", 0)
+
+    # เช็กเงื่อนไข: ยังซื้อไม่เกิน 2 ครั้ง และมีคะแนนพอจ่าย 2 แต้ม
+    if bought_plays < DAILY_BUY_LIMIT and current_score >= BUY_COST_POINTS:
+        # หักคะแนน 2 แต้ม
+        new_score = current_score - BUY_COST_POINTS
+        bought_plays += 1
+
+        session["total_score"] = new_score
+        session["bought_plays"] = bought_plays
+
+        # อัปเดตข้อมูลลง Google Sheet
+        sheet_name = session.get("sheet_name")
+        row_idx = session.get("row_idx")
+        if sheet_name and row_idx:
+            updated_data = {
+                'total_score': new_score,
+                'player_luck': session.get("player_luck", 0.0),
+                'last_play_date': today_str,
+                'free_plays_used': session.get("free_plays_used", 0),
+                'bought_plays': bought_plays,
+                'bought_plays_used': session.get("bought_plays_used", 0)
+            }
+            update_player_data(sheet_name, row_idx, updated_data)
+
+        return redirect("/game")
+
+    return redirect("/game")
 
 
 @app.route("/ranking")
@@ -162,8 +222,7 @@ def ranking():
         return redirect("/login")
 
     period = request.args.get("period", "all")
-    # ดึงตารางคะแนนโดยไม่ส่ง period เพื่อป้องกัน TypeError จาก sheets_service.py
-    top_players = get_leaderboard(limit=100)
+    top_players = get_leaderboard(limit=10) # ล็อกไว้เฉพาะ Top 10
 
     return render_template(
         "ranking.html",
@@ -227,6 +286,7 @@ def admin_dashboard():
                         'player_luck': player_info["player_luck"],
                         'last_play_date': player_info["last_play_date"],
                         'free_plays_used': player_info["free_plays_used"],
+                        'bought_plays': player_info.get("bought_plays", 0),
                         'bought_plays_used': player_info["bought_plays_used"]
                     }
                     update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
