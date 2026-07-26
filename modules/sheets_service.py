@@ -56,11 +56,37 @@ def safe_float(val, default=0.0):
 
 def parse_role_from_prefix(code_id):
     code = code_id.strip().upper()
+    
+    # 1. Admin
     if code.startswith('ADMIN'):
         return 'admin'
-    elif code.startswith('STU'):
-        return 'student'
-    return 'player'
+        
+    # 2. Partner & Customer (P, C)
+    elif code.startswith('P') or code.startswith('C'):
+        return 'customer'
+        
+    # 3. Host (H)
+    elif code.startswith('H'):
+        return 'host'
+        
+    # 4. Black (BL)
+    elif code.startswith('BL'):
+        return 'black'
+        
+    # 5. Bartender (BA)
+    elif code.startswith('BA'):
+        return 'bartender'
+        
+    # 6. Waiter (W)
+    elif code.startswith('W'):
+        return 'waiter'
+        
+    # 7. Security guard (G)
+    elif code.startswith('G'):
+        return 'security'
+        
+    # Default กรณีหลุดเงื่อนไข
+    return 'customer'
 
 # 1. ฟังก์ชันค้นหาข้อมูลผู้เล่น
 def get_player_data(player_id):
@@ -115,7 +141,7 @@ def update_player_data(sheet_name, row_idx, updated_data):
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         worksheet = spreadsheet.worksheet(sheet_name)
         
-        # อัปเดต Column E ถึง I (คะแนน, ดวง, วันที่เล่นล่าสุด, จำนวณสิทธิ์ฟรี, สิทธิ์ซื้อ)
+        # อัปเดต Column E ถึง I (คะแนน, ดวง, วันที่เล่นล่าสุด, จำนวนสิทธิ์ฟรี, สิทธิ์ซื้อ)
         cell_range = f"E{row_idx}:I{row_idx}"
         values = [[
             updated_data.get('total_score', 0),
