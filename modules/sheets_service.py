@@ -21,8 +21,7 @@ def get_client():
     if creds_env:
         try:
             creds_dict = json.loads(creds_env)
-            
-            # 🔧 [จุดที่แก้ไข] แปลงตัวอักขระ \n ใน private_key ให้ถูกต้อง
+            # 🔧 แปลงตัวอักขระ \n ใน private_key ให้ถูกต้องสำหรับ Render
             if 'private_key' in creds_dict and creds_dict['private_key']:
                 creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
                 
