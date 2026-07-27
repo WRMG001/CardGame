@@ -21,8 +21,10 @@ def get_client():
     if creds_env:
         try:
             creds_dict = json.loads(creds_env)
-            if 'private_key' in creds_dict:
-                creds_dict['private_key'] = clean_private_key(creds_dict['private_key'])
+            
+            # 🔧 [จุดที่แก้ไข] แปลงตัวอักขระ \n ใน private_key ให้ถูกต้อง
+            if 'private_key' in creds_dict and creds_dict['private_key']:
+                creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
                 
             creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
             return gspread.authorize(creds)
