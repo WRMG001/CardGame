@@ -3,9 +3,9 @@ from datetime import datetime
 
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
-from modules.game_service import play_game
+from modules.game_service import play_game, get_db
 from modules.sheets_service import update_player_data, get_leaderboard, get_player_data, get_all_players
-from modules.history import log_game_play, get_player_history
+from modules.history import get_player_history
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -13,9 +13,8 @@ app.secret_key = SECRET_KEY
 # 1. Admin IDs
 ADMIN_IDS = ["ADMIN01", "ADMIN02", "ADMIN03"]
 
-# 2. โควตาเล่นต่อวัน และ ค่าธรรมเนียมกดเล่น
-DAILY_PLAY_LIMIT = 3    # เล่นได้สูงสุดวันละ 3 ครั้ง
-PLAY_COST_POINTS = 1    # เสีย 1 แต้มทุกครั้งที่กดเล่น
+# 2. โควตาเล่นต่อวัน
+DAILY_PLAY_LIMIT = 2    # สอดคล้องกับ daily_free ใน game_service.py
 
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
@@ -67,29 +66,27 @@ def game():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # ดึงข้อมูลผู้เล่นล่าสุด
-    try:
-        player_info = get_player_data(player_id)
-        if player_info:
-            plays_used = int(player_info.get("free_plays_used", 0))
-            total_score = int(player_info.get("total_score", 0))
-            session["sheet_name"] = player_info.get("sheet_name")
-            session["row_idx"] = player_info.get("row_idx")
-            if player_info.get("player_name"):
-                session["player_name"] = player_info.get("player_name")
-        else:
-            plays_used = int(session.get("free_plays_used", 0))
-            total_score = int(session.get("total_score", 0))
-    except Exception as e:
-        print(f"Error getting player data: {e}")
-        plays_used = int(session.get("free_plays_used", 0))
-        total_score = int(session.get("total_score", 0))
+    # ดึงข้อมูลผู้เล่นล่าสุดจาก DB (SQLite)
+    plays_left = 0
+    total_score = 0
+    player_luck = 0.0
 
-    # คำนวณสิทธิ์ที่เหลืออยู่
-    remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT daily_free, score, player_luck FROM players WHERE player_id = ?", (player_id,))
+        player = cursor.fetchone()
+        conn.close()
+
+        if player:
+            plays_left = player["daily_free"]
+            total_score = player["score"]
+            player_luck = player["player_luck"]
+    except Exception as e:
+        print(f"Error getting player db data: {e}")
 
     # เช็กว่าสิทธิ์หมดหรือยัง
-    if plays_used >= DAILY_PLAY_LIMIT:
+    if plays_left <= 0:
         return render_template(
             "game_limit.html",
             player_id=player_id,
@@ -102,9 +99,9 @@ def game():
         "game.html",
         player_id=player_id,
         player_name=player_name,
-        plays_left=remaining_plays,
+        plays_left=plays_left,
         show_luck=SHOW_LUCK_TO_PLAYERS,
-        final_luck=float(session.get("player_luck", 0.0)) + EVENT_LUCK
+        final_luck=round(player_luck + EVENT_LUCK, 2)
     )
 
 
@@ -119,56 +116,36 @@ def api_play():
     player_id = str(session.get("player_id", "")).strip().upper()
 
     try:
-        # ดึงข้อมูลล่าสุด
-        player_info = get_player_data(player_id)
-        if player_info:
-            plays_used = int(player_info.get("free_plays_used", 0))
-            total_score = int(player_info.get("total_score", 0))
-        else:
-            plays_used = int(session.get("free_plays_used", 0))
-            total_score = int(session.get("total_score", 0))
+        # เรียกประมวลผลผ่าน play_game ใน game_service.py (จัดการ DB, SQLite & Excel ในตัว)
+        result = play_game(player_id=player_id, event_luck=EVENT_LUCK)
 
-        # เช็กสิทธิ์ก่อนประมวลผล
-        if plays_used >= DAILY_PLAY_LIMIT:
-            return jsonify({"success": False, "message": "สิทธิ์การเล่นประจำวันของคุณหมดแล้ว"})
+        if not result.get("success"):
+            return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
-        # สุ่มไพ่และคำนวณผลลัพธ์
-        player_luck = float(session.get("player_luck", 0.0))
-        result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
+        # ดึงสิทธิ์คงเหลือล่าสุดจาก DB
+        plays_left = 0
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT daily_free FROM players WHERE player_id = ?", (player_id,))
+            p = cursor.fetchone()
+            conn.close()
+            if p:
+                plays_left = p["daily_free"]
+        except Exception:
+            pass
 
-        plays_used += 1
-        session["free_plays_used"] = plays_used
-
-        # คำนวณคะแนนใหม่
-        score_gained = result["final_score"]
-        new_total = total_score + score_gained - PLAY_COST_POINTS
-        session["total_score"] = new_total
-
-        # อัปเดต Google Sheets
-        if session.get("sheet_name") and session.get("row_idx"):
-            update_player_data(session.get("sheet_name"), session.get("row_idx"), {
-                'total_score': new_total,
-                'free_plays_used': plays_used
-            })
-
-        # บันทึก History
-        log_game_play(
-            player_id=player_id,
-            cards=result["cards"],
-            combo=result["combo"],
-            final_score=score_gained,
-            total_score=new_total
-        )
-
-        remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
+        # อัปเดตข้อมูลลง Session
+        session["total_score"] = result["final_score"]
+        session["player_luck"] = result["next_player_luck"]
 
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo": result["combo"],
-            "score_gained": score_gained,
-            "total_score": new_total,
-            "plays_left": remaining_plays
+            "score_gained": result["score_gained"],
+            "total_score": result["final_score"],
+            "plays_left": plays_left
         })
 
     except Exception as e:
@@ -280,6 +257,17 @@ def admin_dashboard():
                     'free_plays_used': 0
                 }
                 update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
+                
+                # รีเซ็ตใน SQLite DB ด้วย
+                try:
+                    conn = get_db()
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE players SET daily_free = 2 WHERE player_id = ?", (target_id,))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    print(f"Error resetting SQLite daily_free: {e}")
+
                 msg = f"✅ รีเซ็ตจำนวนรอบเล่นประจำวันของ {target_id} เรียบร้อย!"
                 searched_player = get_player_data(target_id)
             else:
