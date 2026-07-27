@@ -23,13 +23,13 @@ SHOW_LUCK_TO_PLAYERS = False
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return redirect("/login")
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        player_id = request.form.get("player_id", "")
+        player_id = request.form.get("player_id", "").strip().upper()
         if login_player(player_id):
             return redirect("/home")
         return render_template("login.html", error="ไม่พบ Player ID หรือรูปแบบรหัสไม่ถูกต้อง")
@@ -44,7 +44,7 @@ def home():
     return render_template(
         "home.html",
         player_id=session.get("player_id"),
-        player_name=session.get("player_name"),
+        player_name=session.get("player_name", "ผู้เล่น"),
         role=session.get("role"),
         event_luck=EVENT_LUCK
     )
@@ -61,62 +61,78 @@ def game():
     if "player_id" not in session:
         return redirect("/login")
 
-    player_id = session.get("player_id")
+    player_id = str(session.get("player_id", "")).strip().upper()
+    player_name = session.get("player_name", "ผู้เล่น")
     
-    # 1. ดึงข้อมูลจำนวนครั้งที่เล่นไปแล้ว
+    # 1. ดึงข้อมูลจำนวนครั้งที่เล่นไปแล้วและคะแนนล่าสุดจาก DB / Session
     try:
         player_info = get_player_data(player_id)
-        plays_used = int(player_info.get("free_plays_used", 0)) if player_info else int(session.get("free_plays_used", 0))
-        total_score = int(player_info.get("total_score", 0)) if player_info else int(session.get("total_score", 0))
-    except Exception:
+        if player_info:
+            plays_used = int(player_info.get("free_plays_used", 0))
+            total_score = int(player_info.get("total_score", 0))
+            # อัปเดตข้อมูล Session ล่าสุดเสมอ
+            session["sheet_name"] = player_info.get("sheet_name")
+            session["row_idx"] = player_info.get("row_idx")
+            if player_info.get("player_name"):
+                session["player_name"] = player_info.get("player_name")
+        else:
+            plays_used = int(session.get("free_plays_used", 0))
+            total_score = int(session.get("total_score", 0))
+    except Exception as e:
+        print(f"Error getting player data: {e}")
         plays_used = int(session.get("free_plays_used", 0))
         total_score = int(session.get("total_score", 0))
 
-    # 2. เช็กโควตา "ก่อน" เริ่มเล่นเกม ถ้าครบ/เกินแล้ว ให้ส่งไปหน้าสิทธิ์หมดทันที
+    # 2. เช็กโควตาก่อนเริ่มเล่น
     if plays_used >= DAILY_PLAY_LIMIT:
         return render_template(
             "game_limit.html",
             player_id=player_id,
-            player_name=session.get("player_name", "Player"),
+            player_name=session.get("player_name", "ผู้เล่น"),
             max_limit=DAILY_PLAY_LIMIT,
             total_score=total_score
         )
 
-    # 3. เล่นเกมและเพิ่มสิทธิ์การเล่น
+    # 3. เล่นเกมและคำนวณคะแนน
     player_luck = float(session.get("player_luck", 0.0))
     result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
 
     plays_used += 1
     session["free_plays_used"] = plays_used
     
+    # คำนวณคะแนนใหม่: คะแนนเดิม + คะแนนรอบนี้ - ค่าเล่น
     new_total = total_score + result["final_score"] - PLAY_COST_POINTS
     session["total_score"] = new_total
 
-    # อัปเดตลง Database / Google Sheet แบบปลอดภัย
+    # 4. อัปเดตลง Google Sheets
     try:
-        update_player_data(session.get("sheet_name"), session.get("row_idx"), {
-            'total_score': new_total,
-            'free_plays_used': plays_used
-        })
-        
-        # 🔧 [แก้ไขจุดนี้] บันทึกประวัติการเล่นเข้า History Log
+        if session.get("sheet_name") and session.get("row_idx"):
+            update_player_data(session.get("sheet_name"), session.get("row_idx"), {
+                'total_score': new_total,
+                'free_plays_used': plays_used
+            })
+    except Exception as e:
+        print(f"❌ Sheet update error: {e}")
+
+    # 5. บันทึกประวัติลง History Log
+    try:
         log_game_play(
-            player_id=str(player_id).strip().upper(),
+            player_id=player_id,
             cards=result["cards"],
             combo=result["combo"],
             final_score=result["final_score"],
             total_score=new_total
         )
     except Exception as e:
-        print(f"Sheet or Log update error: {e}")
+        print(f"❌ Log history error: {e}")
 
-    # คำนวณสิทธิ์ที่เหลืออยู่จริงๆ หลังเล่นรอบนี้
+    # คำนวณสิทธิ์ที่เหลืออยู่จริงๆ
     remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
 
     return render_template(
         "game.html",
         player_id=player_id,
-        player_name=session.get("player_name", "Player"),
+        player_name=session.get("player_name", "ผู้เล่น"),
         cards=result["cards"],
         combo=result["combo"],
         final_score=result["final_score"],
@@ -124,17 +140,18 @@ def game():
         plays_left=remaining_plays
     )
 
+
 @app.route("/ranking")
 def ranking():
     if "player_id" not in session:
         return redirect("/login")
 
-    top_10_players = get_leaderboard(limit=10) # ดึง Top 10
+    top_10_players = get_leaderboard(limit=10)
     
-    # ดึงรายชื่อผู้เล่นทั้งหมดที่มีสถิติ/กดเล่นแล้ว
     try:
-        all_players = get_all_players() # ดึงผู้เล่นทั้งหมดใน sheets_service
-    except Exception:
+        all_players = get_all_players()
+    except Exception as e:
+        print(f"Error fetching all players: {e}")
         all_players = top_10_players
 
     return render_template(
@@ -151,14 +168,16 @@ def history():
     if "player_id" not in session:
         return redirect("/login")
 
-    # 🔧 [แก้ไขจุดนี้] บังคับให้เป็นพิมพ์ใหญ่และลบช่องว่างก่อนส่งไปค้นหาประวัติ
     player_id = str(session.get("player_id", "")).strip().upper()
+    player_name = session.get("player_name", "ผู้เล่น")
+    
+    # ดึงประวัติย้อนหลัง 20 รายการล่าสุด
     history_logs = get_player_history(player_id, limit=20)
 
     return render_template(
         "history.html",
         player_id=player_id,
-        player_name=session.get("player_name"),
+        player_name=player_name,
         history_logs=history_logs
     )
 
@@ -170,7 +189,7 @@ def admin_dashboard():
     if "player_id" not in session:
         return redirect("/login")
 
-    current_player_id = session.get("player_id", "").strip().upper()
+    current_player_id = str(session.get("player_id", "")).strip().upper()
     if current_player_id not in [aid.upper() for aid in ADMIN_IDS]:
         return redirect("/home")
 
@@ -189,13 +208,13 @@ def admin_dashboard():
                 msg = "❌ กรุณากรอกตัวเลขค่า Luck"
 
         elif action == "search_player":
-            target_id = request.form.get("target_player_id", "").strip()
+            target_id = request.form.get("target_player_id", "").strip().upper()
             searched_player = get_player_data(target_id)
             if not searched_player:
                 msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
 
         elif action == "modify_score":
-            target_id = request.form.get("target_player_id", "").strip()
+            target_id = request.form.get("target_player_id", "").strip().upper()
             try:
                 score_change = int(request.form.get("score_change", 0))
                 player_info = get_player_data(target_id)
@@ -217,7 +236,7 @@ def admin_dashboard():
                 msg = f"❌ เกิดข้อผิดพลาด: {str(e)}"
 
         elif action == "reset_limit":
-            target_id = request.form.get("target_player_id", "").strip()
+            target_id = request.form.get("target_player_id", "").strip().upper()
             player_info = get_player_data(target_id)
             if player_info:
                 updated_data = {
