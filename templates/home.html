@@ -36,6 +36,15 @@
       </button>
     </a>
 
+    <!-- เพิ่มปุ่มสำหรับ Admin -->
+    {% if role == 'admin' or session.get('player_id') in ['ADMIN01', 'ADMIN02', 'ADMIN03'] %}
+    <a href="/admin" style="text-decoration: none;">
+      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #ffb703; color: #000; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 5px;">
+        ⚙️ จัดการระบบ (Admin Dashboard)
+      </button>
+    </a>
+    {% endif %}
+
     <a href="/logout" style="text-decoration: none; margin-top: 10px;">
       <button style="width: 100%; padding: 12px; font-size: 15px; font-weight: bold; background: #ff4d6d; color: white; border: none; border-radius: 10px; cursor: pointer;">
         🚪 Logout
