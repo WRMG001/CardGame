@@ -14,7 +14,7 @@ app.secret_key = SECRET_KEY
 ADMIN_IDS = ["ADMIN01", "ADMIN02", "ADMIN03"]
 
 # 2. โควตาเล่นต่อวัน
-DAILY_PLAY_LIMIT = 2    # สอดคล้องกับ daily_free ใน game_service.py
+DAILY_PLAY_LIMIT = 2
 
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
@@ -56,7 +56,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 1. หน้าเกมหลัก
+# 1. หน้าเกมหลัก (ดึงสิทธิ์จาก Google Sheets เพื่อความแม่นยำ)
 # -------------------------------------------------------------
 @app.route("/game")
 def game():
@@ -77,7 +77,7 @@ def game():
         total_score = player_sheet_info.get("total_score", 0)
         player_luck = player_sheet_info.get("player_luck", 0.0)
         
-        # คำนวณสิทธิ์คงเหลือ: DAILY_PLAY_LIMIT - รอบที่ใช้ไปแล้ว
+        # คำนวณสิทธิ์คงเหลือ: (โควตาประจำวัน + สิทธิ์ที่ซื้อเพิ่ม) - รอบที่ใช้ไปแล้ว
         free_plays_used = player_sheet_info.get("free_plays_used", 0)
         bought_plays = player_sheet_info.get("bought_plays", 0)
         plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
@@ -133,17 +133,13 @@ def api_play():
         if not result.get("success"):
             return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
+        # ดึงสิทธิ์คงเหลือหลังเล่นเพื่อส่งกลับไปแสดงผล
         plays_left = 0
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT daily_free FROM players WHERE player_id = ?", (player_id,))
-            p = cursor.fetchone()
-            conn.close()
-            if p:
-                plays_left = p["daily_free"]
-        except Exception:
-            pass
+        player_sheet_info = get_player_data(player_id)
+        if player_sheet_info:
+            free_plays_used = player_sheet_info.get("free_plays_used", 0)
+            bought_plays = player_sheet_info.get("bought_plays", 0)
+            plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
 
         session["total_score"] = result["final_score"]
         session["player_luck"] = result["next_player_luck"]
@@ -203,7 +199,7 @@ def history():
 
 
 # -------------------------------------------------------------
-# 3. Admin Dashboard (จัดการสิทธิ์และแก้ไขข้อมูลผู้เล่นอื่น)
+# 3. Admin Dashboard (จัดการสิทธิ์และแก้ไขข้อมูล)
 # -------------------------------------------------------------
 @app.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
@@ -213,7 +209,10 @@ def admin_dashboard():
         return redirect("/login")
 
     current_player_id = str(session.get("player_id", "")).strip().upper()
-    if current_player_id not in [aid.upper() for aid in ADMIN_IDS]:
+    current_role = str(session.get("role", "")).lower()
+
+    # เช็กสิทธิ์แอดมินทั้งจาก Role และ ID
+    if current_role != "admin" and current_player_id not in [aid.upper() for aid in ADMIN_IDS]:
         return redirect("/home")
 
     msg = None
@@ -279,7 +278,7 @@ def admin_dashboard():
                 conn.commit()
                 conn.close()
 
-                # 2. อัปเดตใน Google Sheets
+                # 2. อัปเดตใน Google Sheets (ตั้งค่ารอบที่ใช้ไปแล้วเป็น 0)
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                     updated_data = {
@@ -298,7 +297,7 @@ def admin_dashboard():
         # --- รีเซ็ตสิทธิ์ผู้เล่นทุกคนทั้งระบบ (Reset All Players) ---
         elif action == "reset_all_limits":
             try:
-                # รีเซ็ตสิทธิ์ทุกคนใน SQLite DB
+                # 1. รีเซ็ตทุกคนใน SQLite DB
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE players SET daily_free = ?, today_play = 0", (DAILY_PLAY_LIMIT,))
@@ -306,14 +305,26 @@ def admin_dashboard():
                 conn.commit()
                 conn.close()
 
-                msg = f"🎉 รีเซ็ตสิทธิ์การเล่นให้ผู้เล่นทุกคนเป็น {DAILY_PLAY_LIMIT} รอบสำเร็จ! (ทั้งหมด {affected_rows} คน)"
+                # 2. รีเซ็ตทุกคนใน Google Sheets (ตั้งค่า Free Plays เป็น 0)
+                all_players = get_all_players()
+                for p in all_players:
+                    if p.get("sheet_name") and p.get("row_idx"):
+                        updated_data = {
+                            'total_score': p.get("total_score", 0),
+                            'player_luck': p.get("player_luck", 0.0),
+                            'last_play_date': p.get("last_play_date", ""),
+                            'free_plays_used': 0
+                        }
+                        update_player_data(p["sheet_name"], p["row_idx"], updated_data)
+
+                msg = f"🎉 รีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคนสำเร็จ! (ทั้งหมด {affected_rows} คน)"
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ตทั้งหมด: {str(e)}"
 
-    template_to_render = "dashboard.html"
+    # รองรับการเรนเดอร์ทั้งไฟล์ admin.html และ dashboard.html
     try:
         return render_template(
-            template_to_render,
+            "admin.html",
             event_luck=EVENT_LUCK,
             show_luck=SHOW_LUCK_TO_PLAYERS,
             msg=msg,
@@ -321,7 +332,7 @@ def admin_dashboard():
         )
     except Exception:
         return render_template(
-            "admin.html",
+            "dashboard.html",
             event_luck=EVENT_LUCK,
             show_luck=SHOW_LUCK_TO_PLAYERS,
             msg=msg,
