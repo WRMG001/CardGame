@@ -18,7 +18,7 @@
 
   <!-- 1. ค้นหาผู้เล่นเพื่อจัดการ -->
   <div style="background: #1e1e24; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #333;">
-    <h3 style="color: #ffb703; margin-top: 0; font-size: 18px;">🔍 ค้นหาผู้เล่น</h3>
+    <h3 style="color: #ffb703; margin-top: 0; font-size: 18px;">🔍 ค้นหาผู้เล่นรายบุคคล</h3>
     <form method="POST">
       <input type="hidden" name="action" value="search_player">
       <div style="display: flex; gap: 10px;">
@@ -52,19 +52,33 @@
           </div>
         </form>
 
-        <!-- ฟอร์มรีเซ็ตสิทธิ์ -->
-        <form method="POST" style="margin-top: 10px;">
+        <!-- ฟอร์มรีเซ็ตสิทธิ์เฉพาะคน -->
+        <form method="POST" style="margin-top: 10px;" onsubmit="return confirm('ยืนยันที่จะรีเซ็ตสิทธิ์ผู้เล่น {{ searched_player.player_id }} ใช่หรือไม่?');">
           <input type="hidden" name="action" value="reset_limit">
           <input type="hidden" name="target_player_id" value="{{ searched_player.player_id }}">
           <button type="submit" style="width: 100%; padding: 8px; background: #e63946; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">
-            🔄 รีเซ็ตสิทธิ์เล่นประจำวันของผู้เล่นนี้
+            🔄 รีเซ็ตสิทธิ์เล่นประจำวันของคนนี้
           </button>
         </form>
       </div>
     {% endif %}
   </div>
 
-  <!-- 2. ตั้งค่า Event & Luck -->
+  <!-- 2. ปุ่มรีเซ็ตสิทธิ์ผู้เล่นทุกคนทั้งระบบ (Reset All) -->
+  <div style="background: #1e1e24; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #e63946;">
+    <h3 style="color: #e63946; margin-top: 0; font-size: 18px;">⚠️ รีเซ็ตสิทธิ์ผู้เล่นทั้งเซิร์ฟเวอร์</h3>
+    <p style="font-size: 13px; color: #aaa; margin-bottom: 15px;">
+      ปุ่มนี้จะคืนสิทธิ์การเล่นฟรี 2 รอบให้ผู้เล่นทุกคนในฐานข้อมูล SQLite ทันที
+    </p>
+    <form method="POST" onsubmit="return confirm('⚠️ ยืนยันที่จะรีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคนในระบบใช่หรือไม่?');">
+      <input type="hidden" name="action" value="reset_all_limits">
+      <button type="submit" style="width: 100%; padding: 10px; background: #d62828; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;">
+        💥 รีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคน (Reset All)
+      </button>
+    </form>
+  </div>
+
+  <!-- 3. ตั้งค่า Event & Luck -->
   <div style="background: #1e1e24; border-radius: 12px; padding: 20px; border: 1px solid #333;">
     <h3 style="color: #ffb703; margin-top: 0; font-size: 18px;">🎉 ตั้งค่า Event & System Luck</h3>
     <form method="POST">
