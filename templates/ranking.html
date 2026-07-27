@@ -26,8 +26,11 @@
               {% else %}{{ loop.index }}{% endif %}
             </td>
             <td style="padding: 12px 10px;">
-              <span style="font-weight: bold; font-size: 15px;">{{ player.name }}</span>
-              <span style="color: #666; font-size: 12px; display: block;">({{ player.player_id }})</span>
+              <!-- 🔧 แก้ไขจุดนี้: เช็กทั้ง player_name และ name เพื่อความชัวร์ -->
+              <span style="font-weight: bold; font-size: 15px; color: #ffffff;">
+                {{ player.player_name or player.name or 'ผู้เล่น' }}
+              </span>
+              <span style="color: #aaaaaa; font-size: 12px; display: block;">({{ player.player_id }})</span>
             </td>
             <td style="padding: 12px 10px; text-align: right; font-weight: bold; font-size: 16px; color: {% if player.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
               {{ player.total_score }}
@@ -58,12 +61,15 @@
             <tr style="border-bottom: 1px solid #282833; {% if p.player_id == session.get('player_id') %}background: #253342;{% endif %}">
               <td style="padding: 10px; color: #777;">{{ loop.index }}</td>
               <td style="padding: 10px;">
-                <span style="font-weight: bold;">{{ p.name }}</span>
-                <span style="color: #666; font-size: 12px; display: block;">{{ p.player_id }}</span>
+                <!-- 🔧 แก้ไขจุดนี้เช่นกัน -->
+                <span style="font-weight: bold; color: #ffffff;">
+                  {{ p.player_name or p.name or 'ผู้เล่น' }}
+                </span>
+                <span style="color: #aaaaaa; font-size: 12px; display: block;">{{ p.player_id }}</span>
               </td>
               <td style="padding: 10px; text-align: center;">
                 <span style="background: #2b2b36; padding: 3px 8px; border-radius: 12px; color: #ffb703; font-size: 12px;">
-                  {{ p.get('free_plays_used', 0) }}/3
+                  {{ p.get('free_plays_used', 0) if p is mapping else getattr(p, 'free_plays_used', 0) }}/3
                 </span>
               </td>
               <td style="padding: 10px; text-align: right; font-weight: bold; color: {% if p.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
@@ -87,7 +93,7 @@
 
 </div>
 
-<!-- 🎈 ปุ่มกลับหน้าหลักแบบลอย (Floating Button ติดมุมขวาล่าง) -->
+<!-- 🎈 ปุ่มกลับหน้าหลักแบบลอย -->
 <a href="/home" style="position: fixed; bottom: 25px; right: 20px; z-index: 999; text-decoration: none;">
   <button style="padding: 10px 18px; background: #2b2b36; color: #fff; border: 1.5px solid #ffb703; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 13px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
     🏠 หน้าหลัก
