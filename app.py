@@ -70,20 +70,34 @@ def game():
     total_score = 0
     player_luck = 0.0
 
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT daily_free, score, player_luck FROM players WHERE player_id = ?", (player_id,))
-        player = cursor.fetchone()
-        conn.close()
+    # ดึงข้อมูลจาก Google Sheets ก่อนเพื่อให้ตรงกับตาราง
+    player_sheet_info = get_player_data(player_id)
+    
+    if player_sheet_info:
+        total_score = player_sheet_info.get("total_score", 0)
+        player_luck = player_sheet_info.get("player_luck", 0.0)
+        
+        # คำนวณสิทธิ์คงเหลือ: DAILY_PLAY_LIMIT - รอบที่ใช้ไปแล้ว
+        free_plays_used = player_sheet_info.get("free_plays_used", 0)
+        bought_plays = player_sheet_info.get("bought_plays", 0)
+        plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
+    else:
+        # กรณีสำรอง: อ่านจาก SQLite
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT daily_free, score, player_luck FROM players WHERE player_id = ?", (player_id,))
+            player = cursor.fetchone()
+            conn.close()
 
-        if player:
-            plays_left = player["daily_free"]
-            total_score = player["score"]
-            player_luck = player["player_luck"]
-    except Exception as e:
-        print(f"Error getting player db data: {e}")
+            if player:
+                plays_left = player["daily_free"]
+                total_score = player["score"]
+                player_luck = player["player_luck"]
+        except Exception as e:
+            print(f"Error getting player db data: {e}")
 
+    # เช็กว่าสิทธิ์หมดหรือยัง
     if plays_left <= 0:
         return render_template(
             "game_limit.html",
