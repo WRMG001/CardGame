@@ -1,30 +1,47 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div style="max-width: 550px; margin: 30px auto; color: #fff; text-align: center;">
+<div style="max-width: 550px; margin: 30px auto; color: #fff; text-align: center; font-family: 'Kanit', sans-serif;">
 
   <h2>📜 ประวัติการเล่นย้อนหลัง</h2>
-  <p style="color: #aaa; font-size: 14px;">ผู้เล่น: <strong>{{ player_name }}</strong> ({{ player_id }})</p>
+  <p style="color: #aaa; font-size: 14px;">
+    ผู้เล่น: <strong>{{ player_name or session.get('player_name', 'ผู้เล่น') }}</strong> 
+    ({{ player_id or session.get('player_id', '') }})
+  </p>
 
   <div style="background: #1e1e24; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); margin-top: 20px;">
     
-    {% if history_logs %}
+    {% if history_logs and history_logs|length > 0 %}
       <div style="display: flex; flex-direction: column; gap: 12px;">
         {% for log in history_logs %}
-          <div style="background: #282834; border-radius: 8px; padding: 12px 15px; text-align: left; border-left: 4px solid #00f5d4;">
+          <!-- ดึงค่าคะแนนรอบนี้เตรียมไว้ป้องกัน None -->
+          {% set gained = (log.score_gained if log.score_gained is defined and log.score_gained is not none else (log.round_score or log.score or 0))|int %}
+          <!-- ดึงค่าคะแนนสะสมรวมเตรียมไว้ -->
+          {% set final_tot = (log.final_score if log.final_score is defined and log.final_score is not none else (log.total_score or 0))|int %}
+
+          <div style="background: #282834; border-radius: 8px; padding: 12px 15px; text-align: left; border-left: 4px solid {% if gained < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
+            
             <div style="display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 6px;">
-              <span>🕒 {{ log.date }}</span>
-              <span style="color: #ffb703; font-weight: bold;">คะแนนสุทธิ: {{ "{:,}".format(log.final_score) }}</span>
+              <!-- รองรับทั้ง log.date, log.timestamp, log.datetime -->
+              <span>🕒 {{ log.date or log.timestamp or log.datetime or 'ไม่ระบุเวลา' }}</span>
+              <!-- แสดงคะแนนสะสมรวมสุทธิ -->
+              <span style="color: #ffb703; font-weight: bold;">
+                คะแนนรวม: {{ "{:,}".format(final_tot) }}
+              </span>
             </div>
             
             <div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px;">
-              🃏 ไพ่ที่ได้: <span style="color: #00b4d8;">{{ log.cards }}</span>
+              🃏 ไพ่ที่ได้: <span style="color: #00b4d8;">{{ log.cards or log.cards_played or '-' }}</span>
             </div>
 
             <div style="display: flex; justify-content: space-between; font-size: 13px; color: #ccc;">
-              <span>คอมโบ: <strong>{{ log.combo }}</strong></span>
-              <span style="color: #00f5d4;">+{{ log.score_gained }} แต้ม</span>
+              <span>คอมโบ: <strong>{{ log.combo or log.combo_pattern or 'ปกติ' }}</strong></span>
+              <!-- แสดงแต้มรอบนี้ (+ หรือ - ตามจริง) -->
+              <span style="color: {% if gained < 0 %}#ff4d6d{% else %}#00f5d4{% endif %}; font-weight: bold;">
+                {% if gained > 0 %}+{% endif %}{{ gained }} แต้ม
+              </span>
             </div>
+
           </div>
         {% endfor %}
       </div>
