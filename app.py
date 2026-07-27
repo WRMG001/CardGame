@@ -98,8 +98,17 @@ def game():
             'total_score': new_total,
             'free_plays_used': plays_used
         })
+        
+        # 🔧 [แก้ไขจุดนี้] บันทึกประวัติการเล่นเข้า History Log
+        log_game_play(
+            player_id=str(player_id).strip().upper(),
+            cards=result["cards"],
+            combo=result["combo"],
+            final_score=result["final_score"],
+            total_score=new_total
+        )
     except Exception as e:
-        print(f"Sheet update error: {e}")
+        print(f"Sheet or Log update error: {e}")
 
     # คำนวณสิทธิ์ที่เหลืออยู่จริงๆ หลังเล่นรอบนี้
     remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
@@ -124,7 +133,7 @@ def ranking():
     
     # ดึงรายชื่อผู้เล่นทั้งหมดที่มีสถิติ/กดเล่นแล้ว
     try:
-        all_players = get_all_players() # หรือฟังก์ชันดึงผู้เล่นทั้งหมดใน sheets_service
+        all_players = get_all_players() # ดึงผู้เล่นทั้งหมดใน sheets_service
     except Exception:
         all_players = top_10_players
 
@@ -142,7 +151,8 @@ def history():
     if "player_id" not in session:
         return redirect("/login")
 
-    player_id = session.get("player_id")
+    # 🔧 [แก้ไขจุดนี้] บังคับให้เป็นพิมพ์ใหญ่และลบช่องว่างก่อนส่งไปค้นหาประวัติ
+    player_id = str(session.get("player_id", "")).strip().upper()
     history_logs = get_player_history(player_id, limit=20)
 
     return render_template(
