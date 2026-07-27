@@ -11,9 +11,7 @@
     transform-style: preserve-3d;
   }
   
-  /* แสดงด้านหลังไพ่เมื่อไม่มี class flipped */
   .card-container:not(.flipped) .card-inner { transform: rotateY(0deg); }
-  /* พลิกแสดงด้านหน้าไพ่เมื่อมี class flipped */
   .card-container.flipped .card-inner { transform: rotateY(180deg); }
 
   .card-front, .card-back {
@@ -42,7 +40,6 @@
     transform: rotateY(180deg);
   }
 
-  /* แอนิเมชันตอนไพ่หยุดหมุนสล็อต */
   .stop-spin {
     animation: popIn 0.3s ease-out forwards;
   }
@@ -55,9 +52,9 @@
 
 <div style="text-align: center; margin-top: 20px; color: #fff;">
   <h2>🎴 เปิดไพ่ลุ้นโชค</h2>
-  <p style="color: #aaa; margin-top: 0;">ผู้เล่น: <strong>{{ player_name }}</strong> ({{ player_id }})</p>
+  <p style="color: #aaa; margin-top: 0;">ผู้เล่น: <strong>{{ player_name | default('ผู้เล่น') }}</strong> ({{ player_id | default('-') }})</p>
 
-  <!-- โซนไพ่ 3 ใบ (เริ่มต้นเป็นหน้าปกปิดไว้ ไม่ใส่ flipped) -->
+  <!-- โซนไพ่ 3 ใบ -->
   <div style="display: flex; justify-content: center; gap: 15px; margin: 25px 0;">
     <div class="card-container" id="card-slot-0">
       <div class="card-inner">
@@ -85,20 +82,20 @@
     <p style="font-size: 16px; margin: 5px 0; color: #ccc;">กดปุ่มด้านล่างเพื่อเริ่มหมุนลุ้นไพ่</p>
   </div>
 
-  {% if show_luck %}
-    <p style="color: #888; font-size: 14px;">ค่า Luck ปัจจุบัน: {{ final_luck }}%</p>
+  {% if show_luck is defined and show_luck %}
+    <p style="color: #888; font-size: 14px;">ค่า Luck ปัจจุบัน: {{ final_luck | default(0) }}%</p>
   {% endif %}
 
   <!-- Action Buttons -->
   <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
-    {% if plays_left > 0 %}
+    {% if plays_left is not defined or plays_left > 0 %}
       <button id="playBtn" onclick="startSlotSpin()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer;">
         🎰 เริ่มสุ่มไพ่
       </button>
-    {% elif can_buy_more %}
+    {% elif can_buy_more is defined and can_buy_more %}
       <form action="/buy_play" method="POST" style="display: inline-block;">
         <button type="submit" onclick="playSound('flip')" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #e63946; color: white; border: none; border-radius: 6px; cursor: pointer;">
-          💳 เสีย 1 แต้มเพื่อเล่นต่อ (สิทธิ์ซื้อวันนี้: {{ bought_count }}/{{ max_buy_limit }})
+          💳 เสีย 1 แต้มเพื่อเล่นต่อ (สิทธิ์ซื้อวันนี้: {{ bought_count | default(0) }}/{{ max_buy_limit | default(0) }})
         </button>
       </form>
     {% else %}
@@ -114,7 +111,6 @@
 </div>
 
 <script>
-  // เล่นเสียง Web Audio API
   function playSound(type) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -143,7 +139,6 @@
     } catch(e) { console.log(e); }
   }
 
-  // ตัวสร้างไพ่สล็อตสุ่มหลอกๆ
   const dummyRanks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', 'Joker'];
   const dummySuits = ['♠', '♥', '♦', '♣'];
   
@@ -153,7 +148,6 @@
     return dummySuits[Math.floor(Math.random() * dummySuits.length)];
   }
 
-  // ฟังก์ชันสร้าง HTML หน้าไพ่ตามผลลัพธ์
   function renderFrontCard(cardStr) {
     if (cardStr.includes('Joker') || cardStr.includes('🃏')) {
       return `
@@ -189,7 +183,6 @@
     const homeBtn = document.getElementById('homeBtn');
     const resultBox = document.getElementById('resultBox');
 
-    // 1. ปรับสถานะปุ่ม
     btn.disabled = true;
     btn.innerText = '🎰 กำลังหมุน...';
     btn.style.background = '#6c757d';
@@ -199,12 +192,10 @@
 
     resultBox.innerHTML = '<h3 style="color: #ffb703; margin: 5px 0;">กำลังลุ้นไพ่...</h3><p style="font-size: 14px; margin: 5px 0;">ขอให้โชคดี!</p>';
 
-    // reset ไพ่กลับไปเป็นหน้าปิดก่อน
     for (let i = 0; i < 3; i++) {
       document.getElementById(`card-slot-${i}`).classList.remove('flipped');
     }
 
-    // 2. แอนิเมชันสล็อตหมุนสัญลักษณ์หลังไพ่สลับไปมาอย่างเร็ว
     playSound('flip');
     const spinInterval = setInterval(() => {
       for (let i = 0; i < 3; i++) {
@@ -213,23 +204,20 @@
     }, 60);
 
     try {
-      // 3. ยิง Request ขอผลสุ่มจาก API เซิร์ฟเวอร์
       const response = await fetch('/api/play', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await response.json();
 
-      // หน่วงเวลาสล็อตหมุนหลอกอีก 1.2 วินาทีเพิ่มความลุ้น
       await new Promise(res => setTimeout(res, 1200));
       clearInterval(spinInterval);
 
       if (data.success) {
-        // 4. ค่อยๆ หยุดสล็อต และพลิกเปิดไพ่ทีละใบ
         const cards = data.cards;
 
         for (let i = 0; i < 3; i++) {
-          await new Promise(res => setTimeout(res, 400)); // หน่วงเวลาทีละใบ
+          await new Promise(res => setTimeout(res, 400));
           const slot = document.getElementById(`card-slot-${i}`);
           const front = document.getElementById(`front-content-${i}`);
 
@@ -238,7 +226,6 @@
           playSound('flip');
         }
 
-        // 5. แสดงผลลัพธ์
         setTimeout(() => {
           resultBox.innerHTML = `
             <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: ${data.combo}</h3>
@@ -246,7 +233,6 @@
           `;
           if (data.combo !== "High Card") playSound('win');
 
-          // ปรับปุ่มให้เล่นซ้ำได้ถ้าสิทธิ์ยังเหลือ
           if (data.plays_left > 0) {
             btn.innerText = '🔄 เปิดไพ่อีกรอบ';
             btn.style.background = '#00b4d8';
