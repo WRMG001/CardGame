@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from datetime import datetime
 
 from config import SECRET_KEY
@@ -56,6 +56,9 @@ def logout():
     return redirect("/")
 
 
+# -------------------------------------------------------------
+# 1. หน้าเกมหลัก (โหลดขึ้นมาเป็นหน้าปิดไพ่ ยังไม่หักสิทธิ์)
+# -------------------------------------------------------------
 @app.route("/game")
 def game():
     if "player_id" not in session:
@@ -64,13 +67,12 @@ def game():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # 1. ดึงข้อมูลจำนวนครั้งที่เล่นไปแล้วและคะแนนล่าสุดจาก DB / Session
+    # ดึงข้อมูลผู้เล่นล่าสุด
     try:
         player_info = get_player_data(player_id)
         if player_info:
             plays_used = int(player_info.get("free_plays_used", 0))
             total_score = int(player_info.get("total_score", 0))
-            # อัปเดตข้อมูล Session ล่าสุดเสมอ
             session["sheet_name"] = player_info.get("sheet_name")
             session["row_idx"] = player_info.get("row_idx")
             if player_info.get("player_name"):
@@ -83,62 +85,95 @@ def game():
         plays_used = int(session.get("free_plays_used", 0))
         total_score = int(session.get("total_score", 0))
 
-    # 2. เช็กโควตาก่อนเริ่มเล่น
+    # คำนวณสิทธิ์ที่เหลืออยู่
+    remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
+
+    # เช็กว่าสิทธิ์หมดหรือยัง
     if plays_used >= DAILY_PLAY_LIMIT:
         return render_template(
             "game_limit.html",
             player_id=player_id,
-            player_name=session.get("player_name", "ผู้เล่น"),
+            player_name=player_name,
             max_limit=DAILY_PLAY_LIMIT,
             total_score=total_score
         )
 
-    # 3. เล่นเกมและคำนวณคะแนน
-    player_luck = float(session.get("player_luck", 0.0))
-    result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
+    return render_template(
+        "game.html",
+        player_id=player_id,
+        player_name=player_name,
+        plays_left=remaining_plays,
+        show_luck=SHOW_LUCK_TO_PLAYERS,
+        final_luck=float(session.get("player_luck", 0.0)) + EVENT_LUCK
+    )
 
-    plays_used += 1
-    session["free_plays_used"] = plays_used
-    
-    # คำนวณคะแนนใหม่: คะแนนเดิม + คะแนนรอบนี้ - ค่าเล่น
-    new_total = total_score + result["final_score"] - PLAY_COST_POINTS
-    session["total_score"] = new_total
 
-    # 4. อัปเดตลง Google Sheets
+# -------------------------------------------------------------
+# 2. API สุ่มไพ่ (ทำงานตอนกดปุ่มเริ่มหมุนใน JS)
+# -------------------------------------------------------------
+@app.route("/api/play", methods=["POST"])
+def api_play():
+    if "player_id" not in session:
+        return jsonify({"success": False, "message": "กรุณาเข้าสู่ระบบก่อนเล่น"}), 401
+
+    player_id = str(session.get("player_id", "")).strip().upper()
+
     try:
+        # ดึงข้อมูลล่าสุด
+        player_info = get_player_data(player_id)
+        if player_info:
+            plays_used = int(player_info.get("free_plays_used", 0))
+            total_score = int(player_info.get("total_score", 0))
+        else:
+            plays_used = int(session.get("free_plays_used", 0))
+            total_score = int(session.get("total_score", 0))
+
+        # เช็กสิทธิ์ก่อนประมวลผล
+        if plays_used >= DAILY_PLAY_LIMIT:
+            return jsonify({"success": False, "message": "สิทธิ์การเล่นประจำวันของคุณหมดแล้ว"})
+
+        # สุ่มไพ่และคำนวณผลลัพธ์
+        player_luck = float(session.get("player_luck", 0.0))
+        result = play_game(player_luck=player_luck, event_luck=EVENT_LUCK)
+
+        plays_used += 1
+        session["free_plays_used"] = plays_used
+
+        # คำนวณคะแนนใหม่
+        score_gained = result["final_score"]
+        new_total = total_score + score_gained - PLAY_COST_POINTS
+        session["total_score"] = new_total
+
+        # อัปเดต Google Sheets
         if session.get("sheet_name") and session.get("row_idx"):
             update_player_data(session.get("sheet_name"), session.get("row_idx"), {
                 'total_score': new_total,
                 'free_plays_used': plays_used
             })
-    except Exception as e:
-        print(f"❌ Sheet update error: {e}")
 
-    # 5. บันทึกประวัติลง History Log
-    try:
+        # บันทึก History
         log_game_play(
             player_id=player_id,
             cards=result["cards"],
             combo=result["combo"],
-            final_score=result["final_score"],
+            final_score=score_gained,
             total_score=new_total
         )
+
+        remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
+
+        return jsonify({
+            "success": True,
+            "cards": result["cards"],
+            "combo": result["combo"],
+            "score_gained": score_gained,
+            "total_score": new_total,
+            "plays_left": remaining_plays
+        })
+
     except Exception as e:
-        print(f"❌ Log history error: {e}")
-
-    # คำนวณสิทธิ์ที่เหลืออยู่จริงๆ
-    remaining_plays = max(0, DAILY_PLAY_LIMIT - plays_used)
-
-    return render_template(
-        "game.html",
-        player_id=player_id,
-        player_name=session.get("player_name", "ผู้เล่น"),
-        cards=result["cards"],
-        combo=result["combo"],
-        final_score=result["final_score"],
-        total_score=new_total,
-        plays_left=remaining_plays
-    )
+        print(f"❌ Play API Error: {e}")
+        return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
 @app.route("/ranking")
@@ -171,7 +206,6 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # ดึงประวัติย้อนหลัง 20 รายการล่าสุด
     history_logs = get_player_history(player_id, limit=20)
 
     return render_template(
