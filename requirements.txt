@@ -3,3 +3,5 @@ gunicorn
 google-api-python-client
 google-auth
 gspread
+openpyxl
+gunicorn
