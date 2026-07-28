@@ -179,10 +179,14 @@ def api_play():
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
+        # ดึงชื่อ คอมโบ แบบยืดหยุ่น ป้องกัน undefined
+        combo_title = result.get("combo") or result.get("combo_name") or "High Card"
+
         return jsonify({
             "success": True,
             "cards": result["cards"],
-            "combo_name": result.get("combo", "High Card"),
+            "combo": combo_title,
+            "combo_name": combo_title,
             "score": score_gained,
             "score_gained": score_gained,
             "total_score": new_total_score,
