@@ -14,7 +14,7 @@ app.secret_key = SECRET_KEY
 ADMIN_IDS = ["ADMIN01", "ADMIN02", "ADMIN03"]
 
 # 2. โควตาเล่นต่อวัน
-DAILY_PLAY_LIMIT = 2
+DAILY_PLAY_LIMIT = 3
 
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
