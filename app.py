@@ -270,7 +270,8 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    history_logs = get_player_history(player_id, limit=20)
+    # 🟢 เปลี่ยนมาดึงประวัติจาก Google Sheets โดยตรงแทน SQLite
+    history_logs = get_history_from_sheets(player_id, limit=20)
 
     return render_template(
         "history.html",
