@@ -11,13 +11,13 @@ COMBO_SCORES = {
 }
 
 def calculate_score(combo_name, current_player_score=0):
-    play_cost = 1  # ค่าเปิดไพ่รอบละ 1 แต้ม
-    
-    # เช็กว่าแต้มพอเล่นหรือไม่
-    if current_player_score < play_cost:
-        return 0, play_cost, 0, False  # แต้มไม่พอ
-        
+    """
+    คำนวณคะแนนสุทธิจากคอมโบไพ่
+    - raw_score: แต้มดิบจากตาราง
+    - play_cost: หักค่าเปิดไพ่ (0 แต้ม เพราะใช้ระบบตัดสิทธิ์สิทธิ์เล่นประจำวันแทน)
+    """
+    play_cost = 0
     raw_score = COMBO_SCORES.get(combo_name, 0)
-    final_score = max(0, raw_score - play_cost)
+    score_gained = raw_score - play_cost
     
-    return raw_score, play_cost, final_score, True
+    return raw_score, play_cost, score_gained, True
