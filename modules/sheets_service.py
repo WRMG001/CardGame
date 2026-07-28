@@ -103,6 +103,10 @@ def get_player_data(player_id):
         today_str = datetime.now().strftime("%Y-%m-%d")
         
         for worksheet in spreadsheet.worksheets():
+            # ข้าม Sheet History ไม่ต้องค้นหาผู้เล่นในนี้
+            if worksheet.title == "History":
+                continue
+
             all_rows = worksheet.get_all_values()
             
             for row_idx, row in enumerate(all_rows, start=1):
@@ -143,6 +147,7 @@ def get_player_data(player_id):
         print(f"❌ เกิด Error ขณะอ่าน Sheet: {e}")
         
     return None
+
 # 2. ฟังก์ชันอัปเดตข้อมูลผู้เล่น
 def update_player_data(sheet_name, row_idx, updated_data):
     client = get_client()
@@ -177,6 +182,8 @@ def get_leaderboard(limit=10):
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         for worksheet in spreadsheet.worksheets():
+            if worksheet.title == "History":
+                continue
             all_rows = worksheet.get_all_values()
             for row in all_rows[1:]: # ข้ามหัวตาราง
                 if len(row) >= 5:
@@ -208,6 +215,8 @@ def get_all_players():
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         for worksheet in spreadsheet.worksheets():
+            if worksheet.title == "History":
+                continue
             all_rows = worksheet.get_all_values()
             if not all_rows or len(all_rows) < 2:
                 continue
@@ -235,3 +244,71 @@ def get_all_players():
         print(f"❌ เกิด Error ขณะดึงข้อมูล All Players: {e}")
 
     return all_players
+
+# 5. ฟังก์ชันบันทึกประวัติการเล่นลง Google Sheet "History"
+def save_game_history(player_id, cards, combo, score_gained, final_score):
+    client = get_client()
+    if not client:
+        return False
+    try:
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        try:
+            worksheet = spreadsheet.worksheet("History")
+        except Exception:
+            worksheet = spreadsheet.add_worksheet(title="History", rows="1000", cols="6")
+            worksheet.append_row(["Date", "Player ID", "Cards", "Combo", "Score Gained", "Final Score"])
+
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
+        clean_id = str(player_id).strip().upper()
+
+        worksheet.append_row([
+            now_str,
+            clean_id,
+            cards_str,
+            str(combo),
+            safe_int(score_gained),
+            safe_int(final_score)
+        ])
+        print(f"📜 เซฟประวัติลง Sheet History สำเร็จ: {clean_id}")
+        return True
+    except Exception as e:
+        print(f"❌ เกิด Error ขณะบันทึก History ลง Sheets: {e}")
+        return False
+
+# 6. ฟังก์ชันดึงประวัติการเล่นย้อนหลังจาก Google Sheet "History"
+def get_history_from_sheets(player_id, limit=20):
+    client = get_client()
+    if not client:
+        return []
+    try:
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        try:
+            worksheet = spreadsheet.worksheet("History")
+        except Exception:
+            return []
+
+        all_rows = worksheet.get_all_values()
+        if not all_rows or len(all_rows) < 2:
+            return []
+
+        search_id = str(player_id).strip().upper()
+        history_list = []
+
+        # วนลูปอ่านย้อนหลังจากล่างขึ้นบน
+        for row in reversed(all_rows[1:]):
+            if len(row) >= 6 and str(row[1]).strip().upper() == search_id:
+                history_list.append({
+                    "date": str(row[0]),
+                    "cards": str(row[2]),
+                    "combo": str(row[3]),
+                    "score_gained": safe_int(row[4]),
+                    "final_score": safe_int(row[5])
+                })
+                if len(history_list) >= limit:
+                    break
+
+        return history_list
+    except Exception as e:
+        print(f"❌ เกิด Error ขณะดึง History จาก Sheets: {e}")
+        return []
