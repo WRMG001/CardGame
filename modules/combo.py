@@ -81,7 +81,7 @@ def check_combo(cards):
     if is_flush:
         return "Flush"
 
-    # 8. One Pair (2 แต้ม): มีคู่แต้มเดียวกัน 1 คู่ (ใช้ชื่อ 'One Pair' ตรงกับ score.py)
+    # 8. One Pair (2 แต้ม): มีคู่แต้มเดียวกัน 1 คู่
     if counts == [2, 1]:
         return "One Pair"
 
