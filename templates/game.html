@@ -2,6 +2,7 @@
 
 {% block content %}
 <style>
+  /* สไตล์การพลิกไพ่ 3D แบบ Slot Reel */
   .card-container { perspective: 1000px; }
   .card-inner {
     position: relative;
@@ -28,12 +29,14 @@
     box-sizing: border-box;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
   }
+
   .card-back {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     border: 2px solid #ffb703;
     color: #fff;
     justify-content: center;
   }
+
   .card-front {
     background: #ffffff;
     border: 1px solid #d1d5db;
@@ -43,6 +46,7 @@
   .stop-spin {
     animation: popIn 0.3s ease-out forwards;
   }
+
   @keyframes popIn {
     0% { transform: scale(0.8); }
     50% { transform: scale(1.1); }
@@ -52,10 +56,17 @@
 
 <div style="text-align: center; margin-top: 20px; color: #fff;">
   <h2>🎴 เปิดไพ่ลุ้นโชค</h2>
-  <p style="color: #aaa; margin-top: 0;">ผู้เล่น: <strong>{{ player_name | default('ผู้เล่น') }}</strong> ({{ player_id | default('-') }})</p>
+  <p style="color: #aaa; margin-top: 0;">
+    ผู้เล่น: <strong>{{ player_name | default('ผู้เล่น') }}</strong> ({{ player_id | default('-') }})
+  </p>
+
+  <!-- แสดงสิทธิ์การเล่นประจำวัน -->
+  <p style="color: #00f5d4; font-size: 15px; margin-bottom: 10px;">
+    สิทธิ์เล่นคงเหลือวันนี้: <strong id="playsLeftDisplay" style="font-size: 18px; color: #ffb703;">{{ plays_left | default(0) }}</strong> รอบ
+  </p>
 
   <!-- โซนไพ่ 3 ใบ -->
-  <div style="display: flex; justify-content: center; gap: 15px; margin: 25px 0;">
+  <div style="display: flex; justify-content: center; gap: 15px; margin: 20px 0;">
     <div class="card-container" id="card-slot-0">
       <div class="card-inner">
         <div class="card-back"><span style="font-size: 28px;" id="back-symbol-0">🎴</span></div>
@@ -76,7 +87,7 @@
     </div>
   </div>
 
-  <!-- Result Box -->
+  <!-- Result Box แสดงผลคอมโบและคะแนน -->
   <div id="resultBox" style="background: #2b2b36; padding: 15px; border-radius: 8px; max-width: 320px; margin: 0 auto 20px auto;">
     <h3 style="color: #00f5d4; margin: 5px 0;">พร้อมแล้วหรือยัง?</h3>
     <p style="font-size: 16px; margin: 5px 0; color: #ccc;">กดปุ่มด้านล่างเพื่อเริ่มหมุนลุ้นไพ่</p>
@@ -89,7 +100,7 @@
   <!-- Action Buttons -->
   <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
     {% if plays_left is not defined or plays_left > 0 %}
-      <button id="playBtn" onclick="startSlotSpin()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer;">
+      <button id="playBtn" onclick="startSlotSpin()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">
         🎰 เริ่มสุ่มไพ่
       </button>
     {% elif can_buy_more is defined and can_buy_more %}
@@ -111,6 +122,7 @@
 </div>
 
 <script>
+  // เอฟเฟกต์เสียงเปิดไพ่และชนะ
   function playSound(type) {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -148,12 +160,14 @@
     return dummySuits[Math.floor(Math.random() * dummySuits.length)];
   }
 
+  // แปลงหน้าไพ่เป็น HTML
   function renderFrontCard(cardStr) {
+    if (!cardStr) return '';
     if (cardStr.includes('Joker') || cardStr.includes('🃏')) {
       return `
-        <div style="align-self: flex-start; font-size: 11px; font-weight: bold;">JOKER</div>
+        <div style="align-self: flex-start; font-size: 11px; font-weight: bold; color: #e63946;">JOKER</div>
         <div style="font-size: 38px; line-height: 1;">🃏</div>
-        <div style="align-self: flex-end; font-size: 11px; font-weight: bold; transform: rotate(180deg);">JOKER</div>
+        <div style="align-self: flex-end; font-size: 11px; font-weight: bold; color: #e63946; transform: rotate(180deg);">JOKER</div>
       `;
     }
     const suit = cardStr.slice(-1);
@@ -175,6 +189,7 @@
 
   let isSpinning = false;
 
+  // ฟังก์ชันเริ่มสุ่มไพ่
   async function startSlotSpin() {
     if (isSpinning) return;
     isSpinning = true;
@@ -182,7 +197,9 @@
     const btn = document.getElementById('playBtn');
     const homeBtn = document.getElementById('homeBtn');
     const resultBox = document.getElementById('resultBox');
+    const playsLeftDisplay = document.getElementById('playsLeftDisplay');
 
+    // ล็อกปุ่มระหว่างสุ่ม
     btn.disabled = true;
     btn.innerText = '🎰 กำลังหมุน...';
     btn.style.background = '#6c757d';
@@ -190,10 +207,11 @@
     homeBtn.style.opacity = '0.5';
     homeBtn.style.pointerEvents = 'none';
 
-    resultBox.innerHTML = '<h3 style="color: #ffb703; margin: 5px 0;">กำลังลุ้นไพ่...</h3><p style="font-size: 14px; margin: 5px 0;">ขอให้โชคดี!</p>';
+    resultBox.innerHTML = '<h3 style="color: #ffb703; margin: 5px 0;">กำลังลุ้นไพ่...</h3><p style="font-size: 14px; margin: 5px 0; color: #ccc;">ขอให้โชคดี!</p>';
 
+    // รีเซ็ตการคว่ำไพ่
     for (let i = 0; i < 3; i++) {
-      document.getElementById(`card-slot-${i}`).classList.remove('flipped');
+      document.getElementById(`card-slot-${i}`).classList.remove('flipped', 'stop-spin');
     }
 
     playSound('flip');
@@ -204,6 +222,7 @@
     }, 60);
 
     try {
+      // เรียก API ไปยัง Backend (/api/play)
       const response = await fetch('/api/play', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -216,6 +235,7 @@
       if (data.success) {
         const cards = data.cards;
 
+        // ค่อยๆ หงายไพ่เปิดทีละใบ
         for (let i = 0; i < 3; i++) {
           await new Promise(res => setTimeout(res, 400));
           const slot = document.getElementById(`card-slot-${i}`);
@@ -226,13 +246,20 @@
           playSound('flip');
         }
 
+        // แสดงผลลัพธ์และอัปเดตสิทธิ์คงเหลือ
         setTimeout(() => {
           resultBox.innerHTML = `
             <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: ${data.combo}</h3>
-            <p style="font-size: 18px; margin: 5px 0;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">+${data.score_gained}</strong></p>
+            <p style="font-size: 18px; margin: 5px 0; color: #fff;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">+${data.score_gained}</strong></p>
           `;
           if (data.combo !== "High Card") playSound('win');
 
+          // อัปเดตตัวเลขสิทธิ์คงเหลือบนหน้าจอ
+          if (playsLeftDisplay && data.plays_left !== undefined) {
+            playsLeftDisplay.innerText = data.plays_left;
+          }
+
+          // เช็กสิทธิ์คงเหลือเพื่อปรับสถานะปุ่ม
           if (data.plays_left > 0) {
             btn.innerText = '🔄 เปิดไพ่อีกรอบ';
             btn.style.background = '#00b4d8';
@@ -242,6 +269,7 @@
             btn.style.display = 'none';
             resultBox.innerHTML += `<p style="color: #ff4d6d; font-weight: bold; margin-top: 10px;">โควตาการเล่นประจำวันของคุณหมดแล้ว</p>`;
           }
+
           homeBtn.style.opacity = '1';
           homeBtn.style.pointerEvents = 'auto';
           isSpinning = false;
@@ -249,6 +277,10 @@
 
       } else {
         resultBox.innerHTML = `<p style="color: #ff4d6d;">⚠️ ${data.message}</p>`;
+        btn.innerText = 'ลองใหม่อีกครั้ง';
+        btn.disabled = false;
+        btn.style.background = '#00b4d8';
+        btn.style.cursor = 'pointer';
         homeBtn.style.opacity = '1';
         homeBtn.style.pointerEvents = 'auto';
         isSpinning = false;
