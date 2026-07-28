@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, redirect, session, url_for, j
 from datetime import datetime
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
-from modules.game_service import play_game, get_db
+# 🟢 เพิ่ม log_game_play และ get_player_history จาก game_service
+from modules.game_service import play_game, get_db, log_game_play, get_player_history
 from modules.sheets_service import (
     update_player_data, 
     get_leaderboard, 
@@ -179,15 +180,31 @@ def api_play():
 
         # ดึงชื่อคอมโบแบบยืดหยุ่น
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
+        cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 🟢 บันทึกประวัติการเล่นลง Google Sheet "History"
-        save_game_history(
-            player_id=player_id,
-            cards=result.get("cards", []),
-            combo=combo_title,
-            score_gained=score_gained,
-            final_score=new_total_score
-        )
+        # 🟢 5.1 บันทึกประวัติลง SQLite (เพื่อดึงแสดงผลหน้า /history ไวๆ)
+        try:
+            log_game_play(
+                player_id=player_id,
+                cards=cards_str,
+                combo=combo_title,
+                score_gained=score_gained,
+                final_score=new_total_score
+            )
+        except Exception as sqlite_err:
+            print(f"⚠️ SQLite Log Warning: {sqlite_err}")
+
+        # 🟢 5.2 บันทึกประวัติการเล่นลง Google Sheet "History" (ไว้ดูภาพรวมย้อนหลัง)
+        try:
+            save_game_history(
+                player_id=player_id,
+                cards=result.get("cards", []),
+                combo=combo_title,
+                score_gained=score_gained,
+                final_score=new_total_score
+            )
+        except Exception as sheet_err:
+            print(f"⚠️ Sheets Log Warning: {sheet_err}")
 
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
@@ -251,6 +268,9 @@ def ranking():
     )
 
 
+# -------------------------------------------------------------
+# 🟢 หน้าแสดงประวัติการเล่น (ดึงจาก SQLite ลื่นๆ ไม่ต้องรอดึงจาก Sheets)
+# -------------------------------------------------------------
 @app.route("/history")
 def history():
     if "player_id" not in session:
@@ -259,8 +279,12 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # 🟢 ดึงจาก SQLite โดยตรง ไวมาก ไม่ต้องรอ Google Sheets API
-    history_logs = get_player_history(player_id, limit=20)
+    # 🟢 ดึงจาก SQLite โดยตรง ป้องกันเว็บช้าเมื่อมีข้อมูลหลายพันแถว
+    try:
+        history_logs = get_player_history(player_id, limit=20)
+    except Exception as e:
+        print(f"Error reading history from DB: {e}")
+        history_logs = []
 
     return render_template(
         "history.html",
