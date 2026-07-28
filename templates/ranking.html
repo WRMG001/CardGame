@@ -3,7 +3,7 @@
 {% block content %}
 <div style="max-width: 650px; margin: 30px auto 80px auto; color: #fff; font-family: 'Kanit', sans-serif;">
 
-  <!-- Section 1: Top 10 Leaderboard -->
+  <!-- Section 1: Top 10 Leaderboard (ตัด Admin ออกแล้ว) -->
   <div style="background: #1e1e24; border-radius: 16px; padding: 25px; border: 1px solid #ffb703; margin-bottom: 30px; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
     <h2 style="text-align: center; color: #ffb703; margin-top: 0; font-size: 24px;">🏆 ตารางจัดอันดับ (Top 10)</h2>
     <p style="text-align: center; color: #888; font-size: 13px; margin-bottom: 20px;">อัปเดตคะแนนเรียลไทม์จากระบบ</p>
@@ -26,9 +26,8 @@
               {% else %}{{ loop.index }}{% endif %}
             </td>
             <td style="padding: 12px 10px;">
-              <!-- 🔧 แก้ไขจุดนี้: เช็กทั้ง player_name และ name เพื่อความชัวร์ -->
               <span style="font-weight: bold; font-size: 15px; color: #ffffff;">
-                {{ player.player_name or player.name or 'ผู้เล่น' }}
+                {{ player.code_name or player.player_name or player.name or 'ผู้เล่น' }}
               </span>
               <span style="color: #aaaaaa; font-size: 12px; display: block;">({{ player.player_id }})</span>
             </td>
@@ -41,48 +40,61 @@
     </table>
   </div>
 
-  <!-- Section 2: รายชื่อผู้เล่นทั้งหมด (จำกัดความสูง เลื่อนดูในกรอบ) -->
+  <!-- Section 2: รายชื่อผู้เล่นทั้งหมด แยกตามชีต / Role -->
   <div style="background: #1e1e24; border-radius: 16px; padding: 25px; border: 1px solid #3a3b4c; box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
-    <h3 style="text-align: center; color: #00b4d8; margin-top: 0; font-size: 20px;">👥 รายชื่อผู้เล่นทั้งหมดที่กดเล่นแล้ว</h3>
+    <h3 style="text-align: center; color: #00b4d8; margin-top: 0; font-size: 20px; margin-bottom: 15px;">👥 รายชื่อผู้เล่นทั้งหมดที่กดเล่นแล้ว</h3>
 
-    <!-- กรอบเลื่อนรายชื่อ -->
-    <div style="max-height: 420px; overflow-y: auto; padding-right: 5px; margin-top: 15px;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-        <thead style="position: sticky; top: 0; background: #1e1e24; z-index: 2;">
-          <tr style="border-bottom: 2px solid #333; color: #00b4d8; text-align: left;">
-            <th style="padding: 10px; width: 50px;">ลำดับ</th>
-            <th style="padding: 10px;">ผู้เล่น</th>
-            <th style="padding: 10px; text-align: center;">เล่นวันนี้</th>
-            <th style="padding: 10px; text-align: right;">คะแนนรวม</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in all_players %}
-            <tr style="border-bottom: 1px solid #282833; {% if p.player_id == session.get('player_id') %}background: #253342;{% endif %}">
-              <td style="padding: 10px; color: #777;">{{ loop.index }}</td>
-              <td style="padding: 10px;">
-                <!-- 🔧 แก้ไขจุดนี้เช่นกัน -->
-                <span style="font-weight: bold; color: #ffffff;">
-                  {{ p.player_name or p.name or 'ผู้เล่น' }}
-                </span>
-                <span style="color: #aaaaaa; font-size: 12px; display: block;">{{ p.player_id }}</span>
-              </td>
-              <td style="padding: 10px; text-align: center;">
-                <span style="background: #2b2b36; padding: 3px 8px; border-radius: 12px; color: #ffb703; font-size: 12px;">
-                  {{ p.get('free_plays_used', 0) if p is mapping else getattr(p, 'free_plays_used', 0) }}/3
-                </span>
-              </td>
-              <td style="padding: 10px; text-align: right; font-weight: bold; color: {% if p.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
-                {{ p.total_score }}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <!-- ปุ่มเลือกแท็บสลับชีต/กลุ่ม -->
+    <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+      {% for sheet_name in grouped_players.keys() %}
+        <button class="sheet-tab-btn {% if loop.first %}active{% endif %}" onclick="switchSheetTab(event, 'sheet-tab-{{ loop.index }}')">
+          📌 {{ sheet_name }}
+        </button>
+      {% endfor %}
     </div>
+
+    <!-- กรอบแสดงผลข้อมูลของแต่ละชีต -->
+    {% for sheet_name, players in grouped_players.items() %}
+      <div id="sheet-tab-{{ loop.index }}" class="sheet-tab-content" style="{% if not loop.first %}display: none;{% endif %}">
+        <div style="max-height: 420px; overflow-y: auto; padding-right: 5px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead style="position: sticky; top: 0; background: #1e1e24; z-index: 2;">
+              <tr style="border-bottom: 2px solid #333; color: #00b4d8; text-align: left;">
+                <th style="padding: 10px; width: 50px;">ลำดับ</th>
+                <th style="padding: 10px;">ผู้เล่น</th>
+                <th style="padding: 10px; text-align: center;">เล่นวันนี้</th>
+                <th style="padding: 10px; text-align: right;">คะแนนรวม</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in players %}
+                <tr style="border-bottom: 1px solid #282833; {% if p.player_id == session.get('player_id') %}background: #253342;{% endif %}">
+                  <td style="padding: 10px; color: #777;">{{ loop.index }}</td>
+                  <td style="padding: 10px;">
+                    <span style="font-weight: bold; color: #ffffff;">
+                      {{ p.code_name or p.player_name or p.name or 'ผู้เล่น' }}
+                    </span>
+                    <span style="color: #aaaaaa; font-size: 12px; display: block;">{{ p.player_id }}</span>
+                  </td>
+                  <td style="padding: 10px; text-align: center;">
+                    <span style="background: #2b2b36; padding: 3px 8px; border-radius: 12px; color: #ffb703; font-size: 12px;">
+                      {{ p.get('free_plays_used', 0) if p is mapping else getattr(p, 'free_plays_used', 0) }}/3
+                    </span>
+                  </td>
+                  <td style="padding: 10px; text-align: right; font-weight: bold; color: {% if p.total_score < 0 %}#ff4d6d{% else %}#00f5d4{% endif %};">
+                    {{ p.total_score }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endfor %}
+
   </div>
 
-  <!-- ปุ่มกลับหน้าหลักแบบปกติ (ด้านล่างสุด) -->
+  <!-- ปุ่มกลับหน้าหลักแบบปกติ -->
   <div style="text-align: center; margin-top: 30px;">
     <a href="/home" style="text-decoration: none;">
       <button style="padding: 12px 25px; background: #3a3b4c; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px;">
@@ -99,4 +111,41 @@
     🏠 หน้าหลัก
   </button>
 </a>
+
+<style>
+  .sheet-tab-btn {
+    background: #2b2b36;
+    color: #aaaaaa;
+    border: 1px solid #3a3b4c;
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+  }
+  .sheet-tab-btn:hover {
+    color: #ffffff;
+    border-color: #00b4d8;
+  }
+  .sheet-tab-btn.active {
+    background: #00b4d8;
+    color: #121212;
+    border-color: #00b4d8;
+    box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+  }
+</style>
+
+<script>
+  function switchSheetTab(evt, tabId) {
+    const contents = document.querySelectorAll('.sheet-tab-content');
+    contents.forEach(c => c.style.display = 'none');
+
+    const buttons = document.querySelectorAll('.sheet-tab-btn');
+    buttons.forEach(b => b.classList.remove('active'));
+
+    document.getElementById(tabId).style.display = 'block';
+    evt.currentTarget.classList.add('active');
+  }
+</script>
 {% endblock %}
