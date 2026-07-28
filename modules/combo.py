@@ -5,13 +5,15 @@ def parse_card(card_str):
     if not card_str:
         return 0, ''
     
-    # ใช้ Regex ดึงเฉพาะตัวเลขหรืออักษร J, Q, K, A ออกมาเป็น Rank
-    match = re.match(r'^([2-9]|10|[JQKAjqka])', str(card_str).strip())
+    card_text = str(card_str).strip()
+    
+    # แก้ไข Regex ให้เช็ก '10' ก่อนกลุ่มตัวเลขเดี่ยว เพื่อป้องกันไม่ให้ถูกจับเป็นเลข '1'
+    match = re.match(r'^(10|[2-9]|[JQKAjqka])', card_text)
     if not match:
         return 0, ''
         
     rank_str = match.group(1).upper()
-    suit = card_str.replace(match.group(1), '').strip()
+    suit = card_text[len(match.group(1)):].strip()
     
     rank_map = {
         '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
@@ -19,7 +21,7 @@ def parse_card(card_str):
     }
     rank = rank_map.get(rank_str, 0)
     
-    # คืนค่าดอกไพ่โดยตัด Emoji Variation ออก
+    # คืนค่าดอกไพ่ (รองรับ Emoji สัญลักษณ์ดอกไพ่)
     clean_suit = suit[0] if suit else ''
     return rank, clean_suit
 
@@ -32,6 +34,7 @@ def check_combo(cards):
     ranks = sorted([p[0] for p in parsed])
     suits = [p[1] for p in parsed]
 
+    # ถ้ามีไพ่ใบไหนแกะค่าไม่ได้
     if 0 in ranks:
         return "High Card"
 
@@ -48,14 +51,22 @@ def check_combo(cards):
     
     counts = sorted(rank_counts.values(), reverse=True)
 
-    if is_straight and is_flush:
+    # 1. เช็ก Royal Straight Flush (เรียงดอกเดียวกัน และไพ่สูงสุดคือ A เช่น Q-K-A หรือ J-Q-K / 10-J-Q-K-A)
+    if is_straight and is_flush and ranks[2] == 14 and ranks[1] == 13:
+        return "Royal Straight Flush"
+    # 2. Straight Flush
+    elif is_straight and is_flush:
         return "Straight Flush"
+    # 3. Three of a Kind (ตอง)
     elif counts == [3]:
         return "Three of a Kind"
+    # 4. Straight (เรียง)
     elif is_straight:
         return "Straight"
+    # 5. Flush (สี/ดอกเดียวกัน)
     elif is_flush:
         return "Flush"
+    # 6. One Pair (คู่)
     elif counts == [2, 1]:
         return "One Pair"
     else:
