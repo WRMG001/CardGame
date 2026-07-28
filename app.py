@@ -200,7 +200,8 @@ def ranking():
     if "player_id" not in session:
         return redirect("/login")
 
-    top_10_players = get_leaderboard(limit=10)
+    # 1. ดึงข้อมูลรายชื่อและตารางอันดับ
+    top_10_players = get_leaderboard(limit=15)
     
     try:
         all_players = get_all_players()
@@ -208,12 +209,34 @@ def ranking():
         print(f"Error fetching all players: {e}")
         all_players = top_10_players
 
+    # 2. กรองรหัส ADMIN ออกทั้งหมด ไม่ให้แสดงในตาราง
+    filtered_all_players = [
+        p for p in all_players 
+        if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
+    ]
+
+    filtered_top_players = [
+        p for p in top_10_players 
+        if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
+    ][:10]
+
+    # 3. จัดกลุ่มผู้เล่นแยกตาม Sheet Name
+    grouped_players = {}
+    for p in filtered_all_players:
+        sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
+        if not sheet_name:
+            sheet_name = "ผู้เล่นทั้งหมด"
+            
+        if sheet_name not in grouped_players:
+            grouped_players[sheet_name] = []
+        grouped_players[sheet_name].append(p)
+
     return render_template(
         "ranking.html",
         player_id=session.get("player_id"),
         player_name=session.get("player_name"),
-        top_players=top_10_players,
-        all_players=all_players
+        top_players=filtered_top_players,
+        grouped_players=grouped_players
     )
 
 
