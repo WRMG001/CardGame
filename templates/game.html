@@ -234,6 +234,8 @@
 
       if (data.success) {
         const cards = data.cards;
+        // ดึงชื่อ combo แบบป้องกันค่า undefined
+        const comboName = data.combo || data.combo_name || "High Card";
 
         // ค่อยๆ หงายไพ่เปิดทีละใบ
         for (let i = 0; i < 3; i++) {
@@ -249,10 +251,10 @@
         // แสดงผลลัพธ์และอัปเดตสิทธิ์คงเหลือ
         setTimeout(() => {
           resultBox.innerHTML = `
-            <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: ${data.combo}</h3>
+            <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: ${comboName}</h3>
             <p style="font-size: 18px; margin: 5px 0; color: #fff;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">+${data.score_gained}</strong></p>
           `;
-          if (data.combo !== "High Card") playSound('win');
+          if (comboName !== "High Card") playSound('win');
 
           // อัปเดตตัวเลขสิทธิ์คงเหลือบนหน้าจอ
           if (playsLeftDisplay && data.plays_left !== undefined) {
