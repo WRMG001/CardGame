@@ -56,7 +56,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 1. หน้าเกมหลัก (ดึงสิทธิ์จาก Google Sheets เพื่อความแม่นยำ)
+# 1. หน้าเกมหลัก
 # -------------------------------------------------------------
 @app.route("/game")
 def game():
@@ -70,19 +70,17 @@ def game():
     total_score = 0
     player_luck = 0.0
 
-    # ดึงข้อมูลจาก Google Sheets ก่อนเพื่อให้ตรงกับตาราง
+    # ดึงข้อมูลจาก Google Sheets
     player_sheet_info = get_player_data(player_id)
     
     if player_sheet_info:
         total_score = player_sheet_info.get("total_score", 0)
         player_luck = player_sheet_info.get("player_luck", 0.0)
         
-        # คำนวณสิทธิ์คงเหลือ: (โควตาประจำวัน + สิทธิ์ที่ซื้อเพิ่ม) - รอบที่ใช้ไปแล้ว
         free_plays_used = player_sheet_info.get("free_plays_used", 0)
         bought_plays = player_sheet_info.get("bought_plays", 0)
         plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
     else:
-        # กรณีสำรอง: อ่านจาก SQLite
         try:
             conn = get_db()
             cursor = conn.cursor()
@@ -97,7 +95,6 @@ def game():
         except Exception as e:
             print(f"Error getting player db data: {e}")
 
-    # เช็กว่าสิทธิ์หมดหรือยัง
     if plays_left <= 0:
         return render_template(
             "game_limit.html",
@@ -112,13 +109,14 @@ def game():
         player_id=player_id,
         player_name=player_name,
         plays_left=plays_left,
+        total_score=total_score,
         show_luck=SHOW_LUCK_TO_PLAYERS,
         final_luck=round(player_luck + EVENT_LUCK, 2)
     )
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่
+# 2. API สุ่มไพ่ (อัปเดตให้รองรับ Key การลดสิทธิ์และส่งคะแนน)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -128,12 +126,13 @@ def api_play():
     player_id = str(session.get("player_id", "")).strip().upper()
 
     try:
+        # เรียกเล่นเกมและตัดสิทธิ์/อัปเดต Google Sheets ใน game_service
         result = play_game(player_id=player_id, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
-        # ดึงสิทธิ์คงเหลือหลังเล่นเพื่อส่งกลับไปแสดงผล
+        # คำนวณสิทธิ์คงเหลือสดๆ ล่าสุด
         plays_left = 0
         player_sheet_info = get_player_data(player_id)
         if player_sheet_info:
@@ -141,16 +140,17 @@ def api_play():
             bought_plays = player_sheet_info.get("bought_plays", 0)
             plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
 
-        session["total_score"] = result["final_score"]
-        session["player_luck"] = result["next_player_luck"]
+        session["total_score"] = result.get("final_score", 0)
+        session["player_luck"] = result.get("next_player_luck", 0.0)
 
         return jsonify({
             "success": True,
             "cards": result["cards"],
-            "combo": result["combo"],
-            "score_gained": result["score_gained"],
-            "total_score": result["final_score"],
-            "plays_left": plays_left
+            "combo_name": result.get("combo", "High Card"),
+            "score_gained": result.get("score_gained", 0),
+            "total_score": result.get("final_score", 0),
+            "plays_left": plays_left,
+            "remaining_spins": plays_left  # เพิ่มรองรับ alias Key
         })
 
     except Exception as e:
@@ -199,7 +199,7 @@ def history():
 
 
 # -------------------------------------------------------------
-# 3. Admin Dashboard (จัดการสิทธิ์และแก้ไขข้อมูล)
+# 3. Admin Dashboard
 # -------------------------------------------------------------
 @app.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
@@ -211,7 +211,6 @@ def admin_dashboard():
     current_player_id = str(session.get("player_id", "")).strip().upper()
     current_role = str(session.get("role", "")).lower()
 
-    # เช็กสิทธิ์แอดมินทั้งจาก Role และ ID
     if current_role != "admin" and current_player_id not in [aid.upper() for aid in ADMIN_IDS]:
         return redirect("/home")
 
@@ -221,7 +220,6 @@ def admin_dashboard():
     if request.method == "POST":
         action = request.form.get("action")
         
-        # --- อัปเดตกิจกรรม/ค่า Luck ของเซิร์ฟเวอร์ ---
         if action == "update_event":
             try:
                 EVENT_LUCK = float(request.form.get("event_luck", 0.0))
@@ -230,27 +228,23 @@ def admin_dashboard():
             except ValueError:
                 msg = "❌ กรุณากรอกตัวเลขค่า Luck"
 
-        # --- ค้นหาข้อมูลผู้เล่น ---
         elif action == "search_player":
             target_id = request.form.get("target_player_id", "").strip().upper()
             searched_player = get_player_data(target_id)
             if not searched_player:
                 msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
 
-        # --- ปรับแต่งคะแนนผู้เล่น ---
         elif action == "modify_score":
             target_id = request.form.get("target_player_id", "").strip().upper()
             try:
                 score_change = int(request.form.get("score_change", 0))
                 
-                # 1. อัปเดตใน SQLite
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE players SET score = score + ? WHERE player_id = ?", (score_change, target_id))
                 conn.commit()
                 conn.close()
 
-                # 2. อัปเดตใน Google Sheets
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                     new_score = player_info.get("total_score", 0) + score_change
@@ -267,18 +261,15 @@ def admin_dashboard():
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาด: {str(e)}"
 
-        # --- รีเซ็ตสิทธิ์ผู้เล่นแบบระบุคน (Specific Player) ---
         elif action == "reset_limit":
             target_id = request.form.get("target_player_id", "").strip().upper()
             try:
-                # 1. อัปเดตใน SQLite DB
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE players SET daily_free = ?, today_play = 0 WHERE player_id = ?", (DAILY_PLAY_LIMIT, target_id))
                 conn.commit()
                 conn.close()
 
-                # 2. อัปเดตใน Google Sheets (ตั้งค่ารอบที่ใช้ไปแล้วเป็น 0)
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                     updated_data = {
@@ -294,10 +285,8 @@ def admin_dashboard():
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ต: {str(e)}"
 
-        # --- รีเซ็ตสิทธิ์ผู้เล่นทุกคนทั้งระบบ (Reset All Players) ---
         elif action == "reset_all_limits":
             try:
-                # 1. รีเซ็ตทุกคนใน SQLite DB
                 conn = get_db()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE players SET daily_free = ?, today_play = 0", (DAILY_PLAY_LIMIT,))
@@ -305,7 +294,6 @@ def admin_dashboard():
                 conn.commit()
                 conn.close()
 
-                # 2. รีเซ็ตทุกคนใน Google Sheets (ตั้งค่า Free Plays เป็น 0)
                 all_players = get_all_players()
                 for p in all_players:
                     if p.get("sheet_name") and p.get("row_idx"):
@@ -321,7 +309,6 @@ def admin_dashboard():
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ตทั้งหมด: {str(e)}"
 
-    # รองรับการเรนเดอร์ทั้งไฟล์ admin.html และ dashboard.html
     try:
         return render_template(
             "admin.html",
