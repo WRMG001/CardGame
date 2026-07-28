@@ -117,6 +117,7 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
         "success": True,
         "cards": cards,
         "combo": combo_name,
+        "combo_name": combo_name,
         "score_gained": raw_score,
         "score": raw_score,
         "cost": play_cost,
