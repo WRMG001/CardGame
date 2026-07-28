@@ -1,13 +1,17 @@
 import re
 
 def parse_card(card_str):
-    """ แยกแต้มและดอกออกจากไพ่ เช่น '10♠' -> (10, '♠') """
+    """ แยกแต้มและดอกออกจากไพ่ เช่น '10♠' -> (10, '♠') หรือ 'Joker' """
     if not card_str:
         return 0, ''
     
     card_text = str(card_str).strip()
     
-    # แก้ไข Regex ให้เช็ก '10' ก่อนกลุ่มตัวเลขเดี่ยว เพื่อป้องกันไม่ให้ถูกจับเป็นเลข '1'
+    # กรณีเป็นไพ่ Joker
+    if "joker" in card_text.lower() or "🃏" in card_text:
+        return 99, 'JOKER'
+
+    # เช็ก Regex โดยวาง '10' ไว้หน้าสุดเพื่อไม่ให้ถูกตัดเป็นเลข '1'
     match = re.match(r'^(10|[2-9]|[JQKAjqka])', card_text)
     if not match:
         return 0, ''
@@ -20,13 +24,12 @@ def parse_card(card_str):
         '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
     }
     rank = rank_map.get(rank_str, 0)
-    
-    # คืนค่าดอกไพ่ (รองรับ Emoji สัญลักษณ์ดอกไพ่)
     clean_suit = suit[0] if suit else ''
+    
     return rank, clean_suit
 
 def check_combo(cards):
-    """ ตรวจสอบคอมโบของไพ่ 3 ใบ """
+    """ ตรวจสอบคอมโบของไพ่ 3 ใบตามตาราง COMBO_SCORES """
     if not cards or len(cards) < 3:
         return "High Card"
 
@@ -34,7 +37,11 @@ def check_combo(cards):
     ranks = sorted([p[0] for p in parsed])
     suits = [p[1] for p in parsed]
 
-    # ถ้ามีไพ่ใบไหนแกะค่าไม่ได้
+    # 1. Joker Trio (100 แต้ม): ไพ่ Joker ทั้ง 3 ใบ
+    if ranks.count(99) == 3:
+        return "Joker Trio"
+
+    # ถ้ามีไพ่ที่แปลงค่าไม่ได้ ให้ตกเป็น High Card
     if 0 in ranks:
         return "High Card"
 
@@ -48,26 +55,35 @@ def check_combo(cards):
     rank_counts = {}
     for r in ranks:
         rank_counts[r] = rank_counts.get(r, 0) + 1
-    
     counts = sorted(rank_counts.values(), reverse=True)
 
-    # 1. เช็ก Royal Straight Flush (เรียงดอกเดียวกัน และไพ่สูงสุดคือ A เช่น Q-K-A หรือ J-Q-K / 10-J-Q-K-A)
+    # 2. Royal Straight Flush (80 แต้ม): สเตรทฟลัชชุดใหญ่ที่สุด (10-J-Q-K-A ดอกเดียวกัน)
     if is_straight and is_flush and ranks[2] == 14 and ranks[1] == 13:
         return "Royal Straight Flush"
-    # 2. Straight Flush
-    elif is_straight and is_flush:
+
+    # 3. Royal Combo (60 แต้ม): ไพ่หมวด Royal/หน้าคนทั้งหมด (J, Q, K, A) โดยไม่จำเป็นต้องเรียงหรือดอกเดียวกัน
+    if all(r >= 11 for r in ranks) and ranks.count(99) == 0:
+        return "Royal Combo"
+
+    # 4. Straight Flush (50 แต้ม): ไพ่เรียงแต้ม + ดอกเดียวกัน
+    if is_straight and is_flush:
         return "Straight Flush"
-    # 3. Three of a Kind (ตอง)
-    elif counts == [3]:
+
+    # 5. Three of a Kind (15 แต้ม): ตอง (ไพ่แต้มเดียวกัน 3 ใบ)
+    if counts == [3]:
         return "Three of a Kind"
-    # 4. Straight (เรียง)
-    elif is_straight:
+
+    # 6. Straight (8 แต้ม): ไพ่เรียงแต้มกัน 3 ใบ
+    if is_straight:
         return "Straight"
-    # 5. Flush (สี/ดอกเดียวกัน)
-    elif is_flush:
+
+    # 7. Flush (5 แต้ม): ไพ่ดอกเดียวกัน 3 ใบ
+    if is_flush:
         return "Flush"
-    # 6. One Pair (คู่)
-    elif counts == [2, 1]:
+
+    # 8. One Pair (2 แต้ม): มีคู่แต้มเดียวกัน 1 คู่ (ใช้ชื่อ 'One Pair' ตรงกับ score.py)
+    if counts == [2, 1]:
         return "One Pair"
-    else:
-        return "High Card"
+
+    # 9. High Card (0 แต้ม)
+    return "High Card"
