@@ -1,11 +1,16 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from datetime import datetime
-from modules.history import log_game_play
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
 from modules.game_service import play_game, get_db
-from modules.sheets_service import update_player_data, get_leaderboard, get_player_data, get_all_players
-from modules.history import get_player_history
+from modules.sheets_service import (
+    update_player_data, 
+    get_leaderboard, 
+    get_player_data, 
+    get_all_players,
+    save_game_history,
+    get_history_from_sheets
+)
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -78,7 +83,7 @@ def game():
         player_luck = player_sheet_info.get("player_luck", 0.0)
         
         free_plays_used = player_sheet_info.get("free_plays_used", 0)
-        bought_plays = player_sheet_info.get("bought_plays", 0)
+        bought_plays = player_sheet_info.get("bought_plays_used", 0)
         plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
     else:
         try:
@@ -134,8 +139,7 @@ def api_play():
         today_str = datetime.now().strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
-        # 🔧 [FIX 1: RESET สิทธิ์ประจำวัน]
-        # ถ้าวันที่ล่าสุดใน Sheet ไม่ใช่วันนี้ ให้รีเซ็ตจำนวนสิทธิ์ที่ใช้ไปเป็น 0
+        # 🔧 RESET สิทธิ์ประจำวัน
         if last_play_date != today_str:
             free_plays_used = 0
             bought_plays = 0
@@ -176,27 +180,14 @@ def api_play():
         # ดึงชื่อคอมโบแบบยืดหยุ่น
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
 
-        # 🔧 [FIX 2: บันทึกประวัติการเล่นลง SQLite]
-        log_game_play(
+        # 🟢 บันทึกประวัติการเล่นลง Google Sheet "History"
+        save_game_history(
             player_id=player_id,
             cards=result.get("cards", []),
-            combo_name=combo_title,
+            combo=combo_title,
             score_gained=score_gained,
             final_score=new_total_score
         )
-
-        # 5. บันทึกลง SQLite DB เป็น Backup สำรอง
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE players SET score = ?, player_luck = ?, last_play_date = ? WHERE player_id = ?",
-                (new_total_score, result.get("next_player_luck", 0.0), today_str, player_id)
-            )
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"⚠️ SQLite Update Error: {e}")
 
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
@@ -217,12 +208,12 @@ def api_play():
         print(f"❌ Play API Error: {e}")
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
+
 @app.route("/ranking")
 def ranking():
     if "player_id" not in session:
         return redirect("/login")
 
-    # 1. ดึงข้อมูลรายชื่อและตารางอันดับ
     top_10_players = get_leaderboard(limit=15)
     
     try:
@@ -231,7 +222,6 @@ def ranking():
         print(f"Error fetching all players: {e}")
         all_players = top_10_players
 
-    # 2. กรองรหัส ADMIN ออกทั้งหมด ไม่ให้แสดงในตาราง
     filtered_all_players = [
         p for p in all_players 
         if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
@@ -242,7 +232,6 @@ def ranking():
         if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
     ][:10]
 
-    # 3. จัดกลุ่มผู้เล่นแยกตาม Sheet Name
     grouped_players = {}
     for p in filtered_all_players:
         sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
@@ -270,7 +259,7 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # 🟢 เปลี่ยนมาดึงประวัติจาก Google Sheets โดยตรงแทน SQLite
+    # 🟢 ดึงประวัติการเล่นจาก Google Sheets
     history_logs = get_history_from_sheets(player_id, limit=20)
 
     return render_template(
@@ -322,12 +311,6 @@ def admin_dashboard():
             try:
                 score_change = int(request.form.get("score_change", 0))
                 
-                conn = get_db()
-                cursor = conn.cursor()
-                cursor.execute("UPDATE players SET score = score + ? WHERE player_id = ?", (score_change, target_id))
-                conn.commit()
-                conn.close()
-
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                     new_score = player_info.get("total_score", 0) + score_change
@@ -347,12 +330,6 @@ def admin_dashboard():
         elif action == "reset_limit":
             target_id = request.form.get("target_player_id", "").strip().upper()
             try:
-                conn = get_db()
-                cursor = conn.cursor()
-                cursor.execute("UPDATE players SET daily_free = ?, today_play = 0 WHERE player_id = ?", (DAILY_PLAY_LIMIT, target_id))
-                conn.commit()
-                conn.close()
-
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                     updated_data = {
@@ -370,14 +347,8 @@ def admin_dashboard():
 
         elif action == "reset_all_limits":
             try:
-                conn = get_db()
-                cursor = conn.cursor()
-                cursor.execute("UPDATE players SET daily_free = ?, today_play = 0", (DAILY_PLAY_LIMIT,))
-                affected_rows = cursor.rowcount
-                conn.commit()
-                conn.close()
-
                 all_players = get_all_players()
+                count = 0
                 for p in all_players:
                     if p.get("sheet_name") and p.get("row_idx"):
                         updated_data = {
@@ -387,8 +358,9 @@ def admin_dashboard():
                             'free_plays_used': 0
                         }
                         update_player_data(p["sheet_name"], p["row_idx"], updated_data)
+                        count += 1
 
-                msg = f"🎉 รีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคนสำเร็จ! (ทั้งหมด {affected_rows} คน)"
+                msg = f"🎉 รีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคนสำเร็จ! (ทั้งหมด {count} คน)"
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ตทั้งหมด: {str(e)}"
 
