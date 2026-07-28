@@ -259,8 +259,8 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # 🟢 ดึงประวัติการเล่นจาก Google Sheets
-    history_logs = get_history_from_sheets(player_id, limit=20)
+    # 🟢 ดึงจาก SQLite โดยตรง ไวมาก ไม่ต้องรอ Google Sheets API
+    history_logs = get_player_history(player_id, limit=20)
 
     return render_template(
         "history.html",
