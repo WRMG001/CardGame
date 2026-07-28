@@ -2,6 +2,7 @@ import os
 import json
 import gspread
 from google.oauth2.service_account import Credentials
+from datetime import datetime
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -89,7 +90,7 @@ def parse_role_from_prefix(code_id):
     # Default กรณีหลุดเงื่อนไข
     return 'customer'
 
-# 1. ฟังก์ชันค้นหาข้อมูลผู้เล่น
+# 1. ฟังก์ชันค้นหาข้อมูลผู้เล่น (พร้อม Auto-Reset สิทธิ์ถ้าข้ามวัน)
 def get_player_data(player_id):
     client = get_client()
     if not client:
@@ -99,6 +100,7 @@ def get_player_data(player_id):
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
         search_id = player_id.strip().upper()
+        today_str = datetime.now().strftime("%Y-%m-%d")
         
         for worksheet in spreadsheet.worksheets():
             all_rows = worksheet.get_all_values()
@@ -116,6 +118,15 @@ def get_player_data(player_id):
                     code_name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else code_id
                     role = parse_role_from_prefix(code_id)
 
+                    last_play_date = str(padded_row[6]).strip()
+                    free_plays_used = safe_int(padded_row[7])
+                    bought_plays_used = safe_int(padded_row[8])
+
+                    # 🔄 CHECK AUTO-RESET: ถ้าเป็นวันใหม่ ให้รีเซ็ตจำนวนที่ใช้ไปเป็น 0
+                    if last_play_date != today_str:
+                        free_plays_used = 0
+                        bought_plays_used = 0
+
                     return {
                         "sheet_name": worksheet.title,
                         "row_idx": row_idx,
@@ -124,15 +135,14 @@ def get_player_data(player_id):
                         "role": role,
                         "total_score": safe_int(padded_row[4]),
                         "player_luck": safe_float(padded_row[5]),
-                        "last_play_date": str(padded_row[6]).strip(),
-                        "free_plays_used": safe_int(padded_row[7]),
-                        "bought_plays_used": safe_int(padded_row[8]),
+                        "last_play_date": last_play_date,
+                        "free_plays_used": free_plays_used,
+                        "bought_plays_used": bought_plays_used,
                     }
     except Exception as e:
         print(f"❌ เกิด Error ขณะอ่าน Sheet: {e}")
         
     return None
-
 # 2. ฟังก์ชันอัปเดตข้อมูลผู้เล่น
 def update_player_data(sheet_name, row_idx, updated_data):
     client = get_client()
