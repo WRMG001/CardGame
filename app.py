@@ -116,7 +116,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (อัปเดตให้รองรับ Key การลดสิทธิ์และส่งคะแนน)
+# 2. API สุ่มไพ่ (ตัดสิทธิ์ + เซฟลง Google Sheet)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -126,31 +126,68 @@ def api_play():
     player_id = str(session.get("player_id", "")).strip().upper()
 
     try:
-        # เรียกเล่นเกมและตัดสิทธิ์/อัปเดต Google Sheets ใน game_service
-        result = play_game(player_id=player_id, event_luck=EVENT_LUCK)
+        # 1. อ่านข้อมูลผู้เล่นปัจจุบันจาก Google Sheet
+        player_sheet_info = get_player_data(player_id)
+        if not player_sheet_info:
+            return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets"}), 400
+
+        free_plays_used = player_sheet_info.get("free_plays_used", 0)
+        bought_plays = player_sheet_info.get("bought_plays", 0)
+        current_score = player_sheet_info.get("total_score", 0)
+        
+        # เช็กสิทธิ์คงเหลือ
+        plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
+        if plays_left <= 0:
+            return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
+
+        # 2. สุ่มไพ่และคำนวณผลผ่าน play_game
+        result = play_game(player_id=player_id, event_luck=EVENT_LUCK, player_score=current_score)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
-        # คำนวณสิทธิ์คงเหลือสดๆ ล่าสุด
-        plays_left = 0
-        player_sheet_info = get_player_data(player_id)
-        if player_sheet_info:
-            free_plays_used = player_sheet_info.get("free_plays_used", 0)
-            bought_plays = player_sheet_info.get("bought_plays", 0)
-            plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
+        # 3. คำนวณคะแนนและสิทธิ์เล่นใหม่
+        score_gained = result.get("score_gained", 0)
+        new_total_score = current_score + score_gained
+        new_free_plays_used = free_plays_used + 1
+        new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
+        today_str = datetime.now().strftime("%Y-%m-%d")
 
-        session["total_score"] = result.get("final_score", 0)
+        # 4. บันทึกผลลัพธ์ย้อนกลับลง Google Sheets
+        if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
+            updated_data = {
+                'total_score': new_total_score,
+                'player_luck': result.get("next_player_luck", player_sheet_info.get("player_luck", 0.0)),
+                'last_play_date': today_str,
+                'free_plays_used': new_free_plays_used
+            }
+            update_player_data(player_sheet_info["sheet_name"], player_sheet_info["row_idx"], updated_data)
+
+        # 5. บันทึกลง SQLite DB เป็น Backup สำรอง
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE players SET score = ?, player_luck = ?, last_play_date = ? WHERE player_id = ?",
+                (new_total_score, result.get("next_player_luck", 0.0), today_str, player_id)
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ SQLite Update Error: {e}")
+
+        session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo_name": result.get("combo", "High Card"),
-            "score_gained": result.get("score_gained", 0),
-            "total_score": result.get("final_score", 0),
-            "plays_left": plays_left,
-            "remaining_spins": plays_left  # เพิ่มรองรับ alias Key
+            "score": score_gained,
+            "score_gained": score_gained,
+            "total_score": new_total_score,
+            "plays_left": new_plays_left,
+            "remaining_spins": new_plays_left
         })
 
     except Exception as e:
