@@ -9,7 +9,7 @@ def get_db():
     conn = sqlite3.connect('database/game.db')
     conn.row_factory = sqlite3.Row
     
-    # เพิ่มคอลัมน์อัตโนมัติทันทีที่เรียกใช้ DB (ถ้ามีแล้วจะข้ามไป ไม่พังแน่นอน)
+    # เพิ่มคอลัมน์อัตโนมัติทันทีที่เรียกใช้ DB (ถ้ามีแล้วจะข้ามไป)
     try:
         conn.execute("ALTER TABLE players ADD COLUMN last_play_date TEXT;")
         conn.commit()
@@ -68,10 +68,24 @@ def evaluate_joker_combo(cards):
         "final_score": 5
     }
 
-def play_game(player_luck=0.0, event_luck=0.0, player_score=10):
+def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
     """
-    ฟังก์ชันหลักในการเล่นเกม 1 รอบ
+    ฟังก์ชันหลักในการเล่นเกม 1 รอบ (รองรับ player_id)
     """
+    # 0. ถ้ามี player_id ส่งมา ให้ไปดึงค่า Luck และ Score จาก DB อัตโนมัติ
+    if player_id:
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT player_luck, score FROM players WHERE player_id = ?", (player_id,))
+            p = cursor.fetchone()
+            conn.close()
+            if p:
+                player_luck = p["player_luck"] if p["player_luck"] is not None else 0.0
+                player_score = p["score"] if p["score"] is not None else 10
+        except Exception as e:
+            print(f"⚠️ Fetch Player Data Error in play_game: {e}")
+
     # 1. คำนวณ Luck สุทธิ
     final_luck = round(player_luck + event_luck, 2)
     
@@ -120,8 +134,10 @@ def play_game(player_luck=0.0, event_luck=0.0, player_score=10):
         next_luck = player_luck
 
     return {
+        "success": True,
         "cards": cards,
         "combo": combo_name,
+        "score_gained": raw_score,
         "score": raw_score,
         "cost": play_cost,
         "final_score": final_score,
