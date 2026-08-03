@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard - แยกตาม Role</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Kanit', sans-serif;
+            min-height: 100vh;
+            padding-bottom: 50px;
+        }
+        .nav-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        .role-card {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+        .role-header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .worst-header {
+            background: linear-gradient(135deg, #ef4444, #991b1b);
+            color: white;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .table-custom {
+            color: #cbd5e1;
+            margin-bottom: 0;
+        }
+        .table-custom th {
+            background-color: #0f172a;
+            color: #94a3b8;
+            border-bottom: 1px solid #334155;
+            font-weight: 500;
+        }
+        .table-custom td {
+            border-bottom: 1px solid #334155;
+            vertical-align: middle;
+        }
+        .rank-badge {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+        .rank-1 { background-color: #f59e0b; color: #78350f; }
+        .rank-2 { background-color: #94a3b8; color: #0f172a; }
+        .rank-3 { background-color: #b45309; color: #fff; }
+        .rank-other { background-color: #334155; color: #94a3b8; }
+        .btn-back {
+            background-color: #334155;
+            color: white;
+            border: none;
+        }
+        .btn-back:hover {
+            background-color: #475569;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <!-- Navigation / Top Bar -->
+    <div class="nav-card d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="m-0 text-warning">🏆 Leaderboard แยกตามสายงาน</h4>
+            <small class="text-muted">ยินดีต้อนรับคุณ {{ player_name }} ({{ player_id }})</small>
+        </div>
+        <div>
+            <a href="/home" class="btn btn-back btn-sm px-3">🔙 กลับหน้าหลัก</a>
+        </div>
+    </div>
+
+    <!-- Section: Top 10 ดวงกุด (แต้มน้อยที่สุด/ติดลบ) -->
+    <div class="role-card">
+        <div class="worst-header d-flex justify-content-between align-items-center">
+            <span>💀 Top 10 อันดับดวงกุด (แต้มต่ำที่สุด)</span>
+            <small>อัปเดตเรียลไทม์</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-custom">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 10%;">อันดับ</th>
+                        <th style="width: 30%;">Player ID</th>
+                        <th style="width: 40%;">ชื่อผู้เล่น</th>
+                        <th class="text-end" style="width: 20%;">คะแนนรวม</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if worst_top10 %}
+                        {% for player in worst_top10 %}
+                        <tr>
+                            <td class="text-center">
+                                <span class="rank-badge rank-other">{{ loop.index }}</span>
+                            </td>
+                            <td><code>{{ player.player_id }}</code></td>
+                            <td>{{ player.player_name }}</td>
+                            <td class="text-end text-danger fw-bold">{{ "{:,}".format(player.total_score) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูลดวงกุด</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Section: Top 10 แยกตามแต่ละ Role -->
+    <div class="row">
+        {% for code, name in role_names.items() %}
+        <div class="col-md-6 col-lg-6">
+            <div class="role-card">
+                <div class="role-header d-flex justify-content-between align-items-center">
+                    <span>👑 {{ name }} ({{ code }})</span>
+                    <small class="badge bg-dark">Top 10</small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-custom">
+                        <thead>
+                            <tr>
+                                <th class="text-center" style="width: 15%;">อันดับ</th>
+                                <th style="width: 35%;">Player ID</th>
+                                <th style="width: 30%;">ชื่อ</th>
+                                <th class="text-end" style="width: 20%;">คะแนน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set players = roles_data.get(code, []) %}
+                            {% if players %}
+                                {% for player in players %}
+                                <tr>
+                                    <td class="text-center">
+                                        {% if loop.index == 1 %}
+                                            <span class="rank-badge rank-1">1</span>
+                                        {% elif loop.index == 2 %}
+                                            <span class="rank-badge rank-2">2</span>
+                                        {% elif loop.index == 3 %}
+                                            <span class="rank-badge rank-3">3</span>
+                                        {% else %}
+                                            <span class="rank-badge rank-other">{{ loop.index }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><code>{{ player.player_id }}</code></td>
+                                    <td>{{ player.player_name }}</td>
+                                    <td class="text-end text-success fw-bold">{{ "{:,}".format(player.total_score) }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูลในสายงานนี้</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+</body>
+</html>
