@@ -2,12 +2,9 @@ from flask import Flask, render_template, request, redirect, session, url_for, j
 from datetime import datetime
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
-# 🟢 เพิ่ม log_game_play และ get_player_history จาก game_service
 from modules.game_service import play_game, get_db
-from modules.score import calculate_score
-from modules.history import log_game_play, get_player_history
 from modules.score import calculate_score, SCORES
-from modules.history import log_game_play
+from modules.history import log_game_play, get_player_history
 from modules.sheets_service import (
     update_player_data, 
     get_leaderboard, 
@@ -126,9 +123,8 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (คิดคะแนนสุทธิแบบติดลบได้)
+# 2. API สุ่มไพ่
 # -------------------------------------------------------------
-# 🟢 ตารางแต้มดิบมาตรฐานของเกม (Raw Score)
 SCORE_MAP = {
     "Joker Trio": 100,
     "Royal Straight Flush": 80,
@@ -152,7 +148,6 @@ def api_play():
     player_id = str(session.get("player_id", "")).strip().upper()
 
     try:
-        # 1. ดึงข้อมูลผู้เล่นจาก Google Sheets
         player_sheet_info = get_player_data(player_id)
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets"}), 400
@@ -176,25 +171,22 @@ def api_play():
         if plays_left <= 0:
             return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
 
-        # 2. เรียกสุ่มไพ่
         current_luck = player_sheet_info.get("player_luck", 0.0)
         result = play_game(player_id=player_id, player_luck=current_luck, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"})
 
-        # 3. คำนวณคะแนนผ่าน modules/score.py
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         score_calc = calculate_score(combo_title, current_score)
 
-        raw_score = score_calc["raw_score"]           # แต้มดิบสำหรับโชว์ UI
-        net_score_gained = score_calc["score_gained"] # แต้มสุทธิสำหรับคิดคะแนนรวม
+        raw_score = score_calc["raw_score"]
+        net_score_gained = score_calc["score_gained"]
         new_total_score = score_calc["final_score"]
 
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
 
-        # 4. อัปเดตกลับ Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             updated_data = {
                 'total_score': new_total_score,
@@ -205,7 +197,6 @@ def api_play():
             }
             update_player_data(player_sheet_info["sheet_name"], player_sheet_info["row_idx"], updated_data)
 
-        # 5. บันทึกประวัติ
         try:
             log_game_play(
                 player_id=player_id,
@@ -227,14 +218,13 @@ def api_play():
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
-        # 6. คืนค่า JSON ส่ง raw_score ไปโชว์หน้าเว็บ
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo": combo_title,
             "combo_name": combo_title,
-            "raw_score": raw_score,               # 👈 แต้มดิบที่จะแสดงบน UI (0, 5 ฯลฯ)
-            "score_gained": net_score_gained,     # แต้มสุทธิ
+            "raw_score": raw_score,
+            "score_gained": net_score_gained,
             "total_score": new_total_score, 
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left
@@ -287,7 +277,7 @@ def ranking():
 
 
 # -------------------------------------------------------------
-# 🟢 หน้าแสดงประวัติการเล่น (ดึงจาก SQLite)
+# หน้าแสดงประวัติการเล่น (ดึงจาก SQLite)
 # -------------------------------------------------------------
 @app.route("/history")
 def history():
@@ -312,7 +302,7 @@ def history():
 
 
 # -------------------------------------------------------------
-# 3. Admin Dashboard
+# 3. Admin Dashboard (ปรับปรุงป้องกัน 500 Error)
 # -------------------------------------------------------------
 @app.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
@@ -391,20 +381,27 @@ def admin_dashboard():
                 all_players = get_all_players()
                 count = 0
                 for p in all_players:
-                    if p.get("sheet_name") and p.get("row_idx"):
+                    s_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", None)
+                    r_idx = p.get("row_idx") if isinstance(p, dict) else getattr(p, "row_idx", None)
+                    t_score = p.get("total_score", 0) if isinstance(p, dict) else getattr(p, "total_score", 0)
+                    p_luck = p.get("player_luck", 0.0) if isinstance(p, dict) else getattr(p, "player_luck", 0.0)
+                    l_date = p.get("last_play_date", "") if isinstance(p, dict) else getattr(p, "last_play_date", "")
+
+                    if s_name and r_idx:
                         updated_data = {
-                            'total_score': p.get("total_score", 0),
-                            'player_luck': p.get("player_luck", 0.0),
-                            'last_play_date': p.get("last_play_date", ""),
+                            'total_score': t_score,
+                            'player_luck': p_luck,
+                            'last_play_date': l_date,
                             'free_plays_used': 0
                         }
-                        update_player_data(p["sheet_name"], p["row_idx"], updated_data)
+                        update_player_data(s_name, r_idx, updated_data)
                         count += 1
 
                 msg = f"🎉 รีเซ็ตสิทธิ์การเล่นของผู้เล่นทุกคนสำเร็จ! (ทั้งหมด {count} คน)"
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ตทั้งหมด: {str(e)}"
 
+    # Render Template แบบรองรับทั้งสองชื่อไฟล์
     try:
         return render_template(
             "admin.html",
@@ -423,35 +420,23 @@ def admin_dashboard():
         )
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
-
 # ==========================================
 # 📊 LEADERBOARD HELPER FUNCTIONS
 # ==========================================
 
 def get_all_players_data():
-    """
-    ดึงข้อมูลผู้เล่นทั้งหมดจาก Google Sheets / DB
-    (ปรับปรุงชื่อฟังก์ชันดึงข้อมูลเดิมที่มีอยู่ได้ครับ)
-    """
+    """ดึงข้อมูลผู้เล่นทั้งหมดจาก Google Sheets"""
     try:
-        # สมมติใช้ฟังก์ชันดึงรายชื่อผู้เล่นเดิมที่มีในระบบของคุณ
-        # ควรคืนค่าเป็น list ของ dict เช่น:
-        # [{'player_id': 'C01', 'player_name': 'Alex', 'role': 'C', 'total_score': 50, ...}]
-        players = get_all_players_from_sheet() # 👈 ใช้ฟังก์ชันดึงข้อมูลผู้เล่นเดิมของคุณตรงนี้
+        players = get_all_players() # 👈 เชื่อมใช้ฟังก์ชันเดิมใน sheets_service
         return players if players else []
     except Exception as e:
         print(f"⚠️ Error fetching all players: {e}")
         return []
 
 def get_leaderboards_by_role():
-    """
-    จัดกลุ่ม Top 10 ตาม Role และ Top 10 ดวงกุด (คะแนนติดลบมากที่สุด)
-    """
+    """จัดกลุ่ม Top 10 ตาม Role และ Top 10 ดวงกุด (คะแนนติดลบมากที่สุด)"""
     all_players = get_all_players_data()
     
-    # คำอธิบาย Role
     role_names = {
         'C': 'Customer',
         'P': 'Partner',
@@ -463,33 +448,45 @@ def get_leaderboards_by_role():
     }
     
     role_leaderboards = {code: [] for code in role_names.keys()}
-    
-    # แปลงคะแนนเป็น int ป้องกัน Error
     valid_players = []
-    for p in all_players:
-        try:
-            p['score_int'] = int(p.get('total_score', 0))
-            valid_players.append(p)
-        except (ValueError, TypeError):
-            p['score_int'] = 0
-            valid_players.append(p)
 
-    # 1. จัดกลุ่ม Top 10 ของแต่ละ Role (คะแนนมากไปน้อย)
+    for p in all_players:
+        # ดึงคะแนนแบบรองรับทั้ง dict และ object
+        score_val = p.get('total_score', 0) if isinstance(p, dict) else getattr(p, 'total_score', 0)
+        p_id = p.get('player_id', '') if isinstance(p, dict) else getattr(p, 'player_id', '')
+        p_role = p.get('role', '') if isinstance(p, dict) else getattr(p, 'role', '')
+
+        try:
+            score_int = int(score_val)
+        except (ValueError, TypeError):
+            score_int = 0
+
+        p_dict = {
+            'player_id': p_id,
+            'player_name': p.get('player_name', p_id) if isinstance(p, dict) else getattr(p, 'player_name', p_id),
+            'role': p_role,
+            'total_score': score_int
+        }
+        valid_players.append(p_dict)
+
+    # 1. จัดกลุ่ม Top 10 ของแต่ละ Role
     for code in role_names.keys():
-        # ดึงคนที่มี role หรือ ID ขึ้นต้นด้วย code
         role_players = [
             p for p in valid_players 
             if str(p.get('role', '')).upper() == code or str(p.get('player_id', '')).upper().startswith(code)
         ]
-        # เรียงลำดับคะแนนสูงสุด 10 อันดับแรก
-        sorted_role = sorted(role_players, key=lambda x: x['score_int'], reverse=True)[:10]
+        sorted_role = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
         role_leaderboards[code] = sorted_role
 
-    # 2. Top 10 คนที่ได้แต้มน้อยที่สุด (คะแนนติดลบมากที่สุด / ดวงกุด)
-    worst_top10 = sorted(valid_players, key=lambda x: x['score_int'])[:10]
+    # 2. Top 10 แต้มน้อยที่สุด (ดวงกุด)
+    worst_top10 = sorted(valid_players, key=lambda x: x['total_score'])[:10]
 
     return {
         "role_names": role_names,
         "roles": role_leaderboards,
         "worst_top10": worst_top10
     }
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
