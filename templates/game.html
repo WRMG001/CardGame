@@ -237,6 +237,17 @@
         // ดึงชื่อ combo แบบป้องกันค่า undefined
         const comboName = data.combo || data.combo_name || "High Card";
 
+        // 🟢 1. ดึงคะแนนดิบ (raw_score) หากไม่มีให้ fallback ไปที่ score_gained หรือ 0
+        let displayScore = (data.raw_score !== undefined) ? data.raw_score : (data.score_gained || 0);
+
+        // 🟢 2. Format การแสดงตัวเลขคะแนนป้องกันการเกิด +-1
+        let formattedScoreText = "";
+        if (displayScore > 0) {
+          formattedScoreText = `+${displayScore}`; // เติมเครื่องหมาย + เฉพาะกรณีแต้ม > 0
+        } else {
+          formattedScoreText = `${displayScore}`;  // ถ้าเป็น 0 หรือติดลบ ให้โชว์ตัวเลขปกติ (เช่น 0)
+        }
+
         // ค่อยๆ หงายไพ่เปิดทีละใบ
         for (let i = 0; i < 3; i++) {
           await new Promise(res => setTimeout(res, 400));
@@ -252,7 +263,7 @@
         setTimeout(() => {
           resultBox.innerHTML = `
             <h3 style="color: #00f5d4; margin: 5px 0;">🎉 Combo: ${comboName}</h3>
-            <p style="font-size: 18px; margin: 5px 0; color: #fff;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">+${data.score_gained}</strong></p>
+            <p style="font-size: 18px; margin: 5px 0; color: #fff;">คะแนนที่ได้: <strong style="color: #ffb703; font-size: 22px;">${formattedScoreText}</strong></p>
           `;
           if (comboName !== "High Card") playSound('win');
 
