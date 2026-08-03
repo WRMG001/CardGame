@@ -3,7 +3,7 @@ from datetime import datetime
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
 # 🟢 เพิ่ม log_game_play และ get_player_history จาก game_service
-from modules.game_service import play_game, get_db, log_game_play, get_player_history
+from modules.game_service import play_game, get_db
 from modules.score import calculate_score
 from modules.history import log_game_play, get_player_history
 from modules.sheets_service import (
