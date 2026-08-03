@@ -124,6 +124,22 @@ def game():
 # -------------------------------------------------------------
 # 2. API สุ่มไพ่ (โชว์แต้มดิบ + หัก -1 แต้มออกจาก Total Score)
 # -------------------------------------------------------------
+# 🟢 ตารางแต้มดิบมาตรฐานของเกม (Raw Score)
+SCORE_MAP = {
+    "Joker Trio": 100,
+    "Royal Straight Flush": 80,
+    "Royal Combo": 60,
+    "Straight Flush": 50,
+    "Three of a Kind": 15,
+    "Straight": 10,
+    "Flush": 5,
+    "One Pair": 3,
+    "High Card": 0,
+    "Double Joker 🃏🃏": 10,
+    "Wild Triple 🎰": 8,
+    "Wild Pair 🃏✨": 5
+}
+
 @app.route("/api/play", methods=["POST"])
 def api_play():
     if "player_id" not in session:
@@ -132,7 +148,7 @@ def api_play():
     player_id = str(session.get("player_id", "")).strip().upper()
 
     try:
-        # 1. อ่านข้อมูลผู้เล่นปัจจุบันจาก Google Sheet
+        # 1. ดึงข้อมูลล่าสุดจาก Google Sheets
         player_sheet_info = get_player_data(player_id)
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets"}), 400
@@ -140,7 +156,6 @@ def api_play():
         today_str = datetime.now().strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
-        # 🔧 RESET สิทธิ์ประจำวัน
         if last_play_date != today_str:
             free_plays_used = 0
             bought_plays = 0
@@ -150,78 +165,72 @@ def api_play():
 
         current_score = player_sheet_info.get("total_score", 0)
         
-        # เช็กสิทธิ์คงเหลือ
         plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
         if plays_left <= 0:
             return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
 
-        # 2. สุ่มไพ่ผ่าน play_game
-        result = play_game(player_id=player_id, event_luck=EVENT_LUCK, player_score=current_score)
+        # 2. เรียกสุ่มไพ่ (ดึงความโชคดีปัจจุบันมาใส่)
+        current_luck = player_sheet_info.get("player_luck", 0.0)
+        result = play_game(player_id=player_id, player_luck=current_luck, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
-            return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
+            return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"})
 
-        # 🟢 3. คำนวณแต้มดิบ และหักค่ากดเล่น -1 แต้มออกจาก Total Score
-        raw_score = result.get("raw_score", result.get("score_gained", 0))  # แต้มคอมโบ ( High Card = 0, One Pair = 3 )
-        PLAY_FEE = 1  # ค่าธรรมเนียมกดเล่น
+        # 3. คำนวณคะแนนที่นี่ที่เดียว!
+        combo_title = result.get("combo") or result.get("combo_name") or "High Card"
+        raw_score = SCORE_MAP.get(combo_title, 0) # แต้มดิบประจำคอมโบ
+        PLAY_FEE = 1 # หักค่ากดเล่น 1 แต้มเสมอ
         
-        # คำนวณคะแนนรวมใหม่ (คะแนนเดิม + แต้มคอมโบ - ค่ากด 1)
+        # คะแนนรวมใหม่ = คะแนนเดิมใน Sheet + แต้มดิบ - 1
         new_total_score = current_score + raw_score - PLAY_FEE
         
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
 
-        # 4. บันทึกผลลัพธ์ย้อนกลับลง Google Sheets
+        # 4. อัปเดตกลับ Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             updated_data = {
-                'total_score': new_total_score,  # บันทึกคะแนนรวมที่หัก -1 เรียบร้อยแล้ว
-                'player_luck': result.get("next_player_luck", player_sheet_info.get("player_luck", 0.0)),
+                'total_score': new_total_score,
+                'player_luck': result.get("next_player_luck", current_luck),
                 'last_play_date': today_str,
                 'free_plays_used': new_free_plays_used,
                 'bought_plays_used': bought_plays
             }
             update_player_data(player_sheet_info["sheet_name"], player_sheet_info["row_idx"], updated_data)
 
-        # ดึงชื่อคอมโบแบบยืดหยุ่น
-        combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 🟢 5.1 บันทึกประวัติลง SQLite (ส่ง raw_score ไปแสดงในประวัติ)
+        # 5. บันทึกประวัติ (โชว์แต้มดิบ raw_score)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=cards_str,
                 combo=combo_title,
-                score_gained=raw_score,  # บันทึกแต้มดิบลงประวัติ (0, 3, 5 ฯลฯ)
+                score_gained=raw_score,
                 final_score=new_total_score
             )
-        except Exception as sqlite_err:
-            print(f"⚠️ SQLite Log Warning: {sqlite_err}")
-
-        # 🟢 5.2 บันทึกประวัติการเล่นลง Google Sheet "History"
-        try:
             save_game_history(
                 player_id=player_id,
                 cards=result.get("cards", []),
                 combo=combo_title,
-                score_gained=raw_score,  # บันทึกแต้มดิบลงประวัติ Sheet
+                score_gained=raw_score,
                 final_score=new_total_score
             )
-        except Exception as sheet_err:
-            print(f"⚠️ Sheets Log Warning: {sheet_err}")
+        except Exception as log_err:
+            print(f"⚠️ Log Warning: {log_err}")
 
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
-        # 🟢 6. ส่ง Response กลับไปแสดงผลฝั่งผู้เล่น
+        # 6. คืนค่า JSON กลับไปหน้าเว็บ
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo": combo_title,
             "combo_name": combo_title,
-            "score": raw_score,             # แสดงแต้มคอมโบดิบ (0, 3, 5)
-            "score_gained": raw_score,      # แสดงแต้มคอมโบดิบ
-            "total_score": new_total_score, # คะแนนรวมใหม่ที่หักค่ากด -1 แต้มแล้ว
+            "score": raw_score,             # แต้มดิบ
+            "score_gained": raw_score,      # แต้มดิบ
+            "total_score": new_total_score, # คะแนนรวมหลังคำนวณหัก 1 แล้ว
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left
         })
