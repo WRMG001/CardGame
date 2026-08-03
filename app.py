@@ -419,6 +419,37 @@ def admin_dashboard():
             searched_player=searched_player
         )
 
+# -------------------------------------------------------------
+# 📊 ROUTE / API สำหรับ LEADERBOARD (แยก ตาม Role & ดวงกุด)
+# -------------------------------------------------------------
+@app.route("/api/leaderboard/roles")
+def api_leaderboard_roles():
+    """API คืนค่าข้อมูล Leaderboard แยกตาม Role และ Top 10 ดวงกุดแบบ JSON"""
+    if "player_id" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    
+    try:
+        data = get_leaderboards_by_role()
+        return jsonify({"success": True, "data": data})
+    except Exception as e:
+        print(f"❌ Leaderboard API Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/leaderboard-roles")
+def leaderboard_roles_page():
+    """หน้าเว็บแสดง Leaderboard แยกตาม Role"""
+    if "player_id" not in session:
+        return redirect("/login")
+        
+    leaderboard_data = get_leaderboards_by_role()
+    return render_template(
+        "leaderboard_roles.html",
+        player_id=session.get("player_id"),
+        player_name=session.get("player_name"),
+        role_names=leaderboard_data["role_names"],
+        roles_data=leaderboard_data["roles"],
+        worst_top10=leaderboard_data["worst_top10"]
+    )
 
 # ==========================================
 # 📊 LEADERBOARD HELPER FUNCTIONS
