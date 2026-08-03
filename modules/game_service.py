@@ -51,22 +51,11 @@ def evaluate_joker_combo(cards):
         "raw_score": 5
     }
 
-def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
-    if player_id:
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("SELECT player_luck, score FROM players WHERE player_id = ?", (player_id,))
-            p = cursor.fetchone()
-            conn.close()
-            if p:
-                player_luck = p["player_luck"] if p["player_luck"] is not None else 0.0
-                player_score = p["score"] if p["score"] is not None else 10
-        except Exception as e:
-            print(f"⚠️ Fetch Player Data Error in play_game: {e}")
-
+def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
+    # 🟢 คำนวณ Luck รวม
     final_luck = round(player_luck + event_luck, 2)
     
+    # 🟢 1. สุ่มไพ่
     try:
         raw_cards = draw_cards(luck=final_luck)
         if isinstance(raw_cards, list):
@@ -79,11 +68,11 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         cards = [f"{random.choice(ranks)}{random.choice(suits)}" for _ in range(3)]
 
+    # 🟢 2. ตรวจสอบคอมโบ (Joker หรือ ไพ่ปกติ)
     joker_result = evaluate_joker_combo(cards)
 
     if joker_result:
         combo_name = joker_result["combo"]
-        raw_score = joker_result["raw_score"]
     else:
         try:
             combo_name = check_combo(cards)
@@ -91,37 +80,19 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
             print(f"⚠️ Combo Check Error: {e}")
             combo_name = "High Card"
 
-        try:
-            raw_score, play_cost, calculated_final, can_play = calculate_score(combo_name, player_score)
-        except Exception as e:
-            print(f"⚠️ Score Calculate Error: {e}")
-            raw_score = 0
-
-    # 🟢 ค่าเปิดไพ่จ่ายจากคะแนนสะสม 1 แต้มเสมอ
-    PLAY_COST = 1
-    
-    # 🟢 คะแนนสุทธิที่นำไปบวก/ลบ จากคะแนนสะสมเดิมของผู้เล่น (คะแนนคอมโบที่ได้ - ค่าเปิดไพ่ 1 แต้ม)
-    score_gained = raw_score - PLAY_COST  
-    
-    # 🟢 คำนวณคะแนนสะสมใหม่ (หักค่าเล่นจาก player_score แล้วบวกแต้มคอมโบเพิ่ม)
-    final_score = player_score + score_gained
-
+    # 🟢 3. อัปเดต ค่า Luck ถัดไป
     try:
         next_luck = update_player_luck(current_luck=player_luck, combo=combo_name, cards=cards)
     except Exception as e:
         print(f"⚠️ Lucky Update Error: {e}")
         next_luck = player_luck
 
+    # ส่งคืนแค่ข้อมูลไพ่ ชื่อคอมโบ และ Luck (ไม่คำนวณคะแนนในนี้)
     return {
         "success": True,
         "cards": cards,
         "combo": combo_name,
         "combo_name": combo_name,
-        "raw_score": raw_score,         # แต้มไพ่เพียวๆ (High Card = 0, One Pair = 3, ฯลฯ)
-        "cost": PLAY_COST,              # ค่าธรรมเนียมเปิดไพ่ = 1
-        "score_gained": score_gained,   # แต้มสุทธิประจำรอบที่จะส่งไปบันทึก (เช่น -1, +2, +7)
-        "score": score_gained,
-        "final_score": final_score,     # คะแนนสะสมสุทธิหลังหักจากแต้มเดิมที่มี
         "player_luck": player_luck,
         "event_luck": event_luck,
         "final_luck": final_luck,
