@@ -180,7 +180,7 @@ def api_play():
         if not result.get("success"):
             return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"})
 
-        # 3. คำนวณคะแนนสุทธิแบบติดลบได้จริง
+       # 3. คำนวณคะแนนสุทธิแบบติดลบได้จริง
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         raw_score = int(SCORE_MAP.get(combo_title, 0)) # แต้มดิบจากคอมโบ
         PLAY_FEE = 1 # ค่าเล่น 1 แต้ม
@@ -189,7 +189,7 @@ def api_play():
         # หรือ High Card (0) - ค่าเล่น (1) = -1 แต้ม
         net_score_gained = raw_score - PLAY_FEE
         
-        # 🟢 คะแนนรวมใหม่สะสมจากคะแนนเดิม (ยอมให้ติดลบสะสม เช่น -1, -2, -3)
+        # 🟢 คะแนนรวมใหม่สะสมจากคะแนนเดิม
         new_total_score = current_score + net_score_gained
         
         new_free_plays_used = free_plays_used + 1
@@ -208,20 +208,20 @@ def api_play():
 
         cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 5. บันทึกประวัติ (ส่งแต้มดิบ และ คะแนนรวมสะสมที่คิดลบ/บวกถูกต้อง)
+        # 🟢 5. บันทึกประวัติ (เปลี่ยนจาก raw_score เป็น net_score_gained)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=cards_str,
                 combo=combo_title,
-                score_gained=raw_score,
+                score_gained=net_score_gained,  # 👈 แก้ตรงนี้เป็น net_score_gained
                 final_score=new_total_score
             )
             save_game_history(
                 player_id=player_id,
                 cards=result.get("cards", []),
                 combo=combo_title,
-                score_gained=raw_score,
+                score_gained=net_score_gained,  # 👈 แก้ตรงนี้เป็น net_score_gained
                 final_score=new_total_score
             )
         except Exception as log_err:
@@ -230,19 +230,18 @@ def api_play():
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
-        # 6. คืนค่า JSON กลับไปหน้าเว็บ
+        # 🟢 6. คืนค่า JSON กลับไปหน้าเว็บ (ส่ง net_score_gained กลับไปให้ UI โชว์)
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo": combo_title,
             "combo_name": combo_title,
-            "score": raw_score,             # แต้มดิบประจำคอมโบ
-            "score_gained": raw_score,      # แต้มดิบประจำคอมโบ
-            "total_score": new_total_score, # คะแนนรวมสะสมจริง
+            "score": net_score_gained,             # 👈 แก้เป็น net_score_gained
+            "score_gained": net_score_gained,      # 👈 แก้เป็น net_score_gained
+            "total_score": new_total_score, 
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left
         })
-
     except Exception as e:
         print(f"❌ Play API Error: {e}")
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
