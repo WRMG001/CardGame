@@ -1,8 +1,7 @@
 # modules/score.py
 
-# 🟢 รวมคะแนนคอมโบทั้งหมดไว้ที่เดียว
+# 🟢 ตารางคะแนนดิบ (Raw Score) ของแต่ละคอมโบ
 SCORES = {
-    # คอมโบมาตรฐาน
     "High Card": 0,
     "One Pair": 3,
     "Two Pair": 5,
@@ -15,8 +14,6 @@ SCORES = {
     "Royal Straight Flush": 80,
     "Royal Combo": 60,
     "Joker Trio": 100,
-    
-    # คอมโบ Joker
     "Double Joker 🃏🃏": 10,
     "Wild Triple 🎰": 8,
     "Wild Pair 🃏✨": 5
@@ -26,17 +23,16 @@ PLAY_COST = 1
 
 def calculate_score(combo_name, current_score=0):
     """
-    คำนวณคะแนนดิบ ค่าธรรมเนียม คะแนนสุทธิ และคะแนนสะสมใหม่
+    คืนค่าคะแนนดิบ (Raw Score) สำหรับโชว์บน UI 
+    และคะแนนสุทธิหลังหักค่าเล่นสำหรับอัปเดต DB/Sheets
     """
     raw_score = SCORES.get(combo_name, 0)
     score_gained = raw_score - PLAY_COST
     final_score = current_score + score_gained
-    can_play = True
 
     return {
-        "raw_score": raw_score,
-        "play_cost": PLAY_COST,
-        "score_gained": score_gained,
-        "final_score": final_score,
-        "can_play": can_play
+        "raw_score": raw_score,          # แต้มดิบ (0, 3, 5, 10 ฯลฯ)
+        "play_cost": PLAY_COST,          # ค่าธรรมเนียม (1)
+        "score_gained": score_gained,    # แต้มสุทธิประจำรอบ (-1, +2, +4 ฯลฯ)
+        "final_score": final_score       # แต้มสะสมใหม่
     }
