@@ -98,3 +98,79 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
         "final_luck": final_luck,
         "next_player_luck": next_luck
     }
+    # -------------------------------------------------------------
+# 🟢 ฟังก์ชันบันทึกประวัติการเล่น (ยอมรับคะแนนติดลบสุทธิได้จริง)
+# -------------------------------------------------------------
+def log_game_play(player_id, cards, combo, score_gained, final_score):
+    """
+    บันทึกประวัติลง SQLite ตาราง game_history 
+    และอัปเดตคะแนนรวมล่าสุดลงตาราง players
+    """
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # 1. สร้างตาราง game_history ถ้ายังไม่มี
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS game_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_id TEXT,
+                cards TEXT,
+                combo TEXT,
+                score_gained INTEGER,
+                final_score INTEGER,
+                created_at TEXT
+            )
+        """)
+
+        # 2. บันทึกประวัติการเล่นรอบนี้ (รับ score_gained และ final_score ตรงๆ ไม่ล็อค 0)
+        cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
+        cursor.execute("""
+            INSERT INTO game_history (player_id, cards, combo, score_gained, final_score, created_at)
+            VALUES (?, ?, ?, ?, ?, DATETIME('now', 'localtime'))
+        """, (player_id, cards_str, combo, int(score_gained), int(final_score)))
+
+        # 3. อัปเดตคะแนนรวมสะสมในตาราง players ด้วย
+        cursor.execute("""
+            UPDATE players SET score = ? WHERE player_id = ?
+        """, (int(final_score), player_id))
+
+        conn.commit()
+        conn.close()
+        print(f"✅ Log saved successfully: {player_id} | Final Score: {final_score}")
+    except Exception as e:
+        print(f"❌ DB Log Error: {e}")
+
+
+def get_player_history(player_id, limit=20):
+    """
+    ดึงประวัติการเล่นของผู้เล่นจาก SQLite
+    """
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT cards, combo, score_gained, final_score, created_at 
+            FROM game_history 
+            WHERE player_id = ? 
+            ORDER BY id DESC 
+            LIMIT ?
+        """, (player_id, limit))
+        
+        rows = cursor.fetchall()
+        conn.close()
+
+        history = []
+        for r in rows:
+            history.append({
+                "cards": r["cards"],
+                "combo": r["combo"],
+                "score_gained": r["score_gained"],
+                "final_score": r["final_score"],
+                "created_at": r["created_at"]
+            })
+        return history
+    except Exception as e:
+        print(f"❌ Error fetching history: {e}")
+        return []
