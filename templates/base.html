@@ -1,23 +1,80 @@
 <!DOCTYPE html>
-
 <html lang="th">
-
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Black Vegas Season 5{% endblock %}</title>
+    
+    <!-- Google Fonts: Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* 🍷 โทนสีหลัก Black Vegas SS5 (Deep Crimson Burgundy & Champagne Gold) */
+        :root {
+            --bg-main: #120304;
+            --bg-card: #1f080a;
+            --bg-card-secondary: #2b0b0e;
+            --border-gold: #5c1d24;
+            --border-highlight: #a82835;
+            --text-gold-light: #fce0a2;
+            --text-gold: #d4af37;
+            --text-main: #f3e8d3;
+            --text-muted: #bfa181;
+            --accent-red: #801823;
+        }
 
-<meta charset="UTF-8">
+        body {
+            background-color: var(--bg-main);
+            /* สร้าง Texture พื้นหลังแบบเรียบหรูสไตล์ภาพตัวอย่าง */
+            background-image: 
+                radial-gradient(circle at 50% 20%, #2e080d 0%, transparent 60%),
+                radial-gradient(circle at 50% 80%, #1a0305 0%, transparent 70%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Kanit', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
 
-<title>Card Game</title>
+        /* ตกแต่งองค์ประกอบพื้นฐาน */
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+        }
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        code {
+            color: #ffd700;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #3d1216;
+            font-family: monospace;
+        }
 
+        /* Custom Scrollbar ให้เข้ากับธีม */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-main);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-gold);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-gold);
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
 </head>
-
 <body>
 
-{% block content %}
-
-{% endblock %}
+    <main>
+        {% block content %}{% endblock %}
+    </main>
 
 </body>
-
 </html>
