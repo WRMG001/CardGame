@@ -122,7 +122,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (ตัดสิทธิ์ + เซฟลง Google Sheet + บันทึกประวัติ)
+# 2. API สุ่มไพ่ (โชว์แต้มดิบ + หัก -1 แต้มออกจาก Total Score)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -155,15 +155,18 @@ def api_play():
         if plays_left <= 0:
             return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
 
-        # 2. สุ่มไพ่และคำนวณผลผ่าน play_game
+        # 2. สุ่มไพ่ผ่าน play_game
         result = play_game(player_id=player_id, event_luck=EVENT_LUCK, player_score=current_score)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
-        # 🟢 3. ดึงคะแนนสุทธิและคะแนนรวมใหม่ที่คำนวณเรียบร้อยแล้วจาก play_game()
-        score_gained = result.get("score_gained", 0) # เช่น -1 สำหรับ High Card
-        new_total_score = result.get("final_score", current_score + score_gained) # ดึงคะแนนรวมใหม่ที่หักค่าเล่น 1 แต้มแล้ว
+        # 🟢 3. คำนวณแต้มดิบ และหักค่ากดเล่น -1 แต้มออกจาก Total Score
+        raw_score = result.get("raw_score", result.get("score_gained", 0))  # แต้มคอมโบ ( High Card = 0, One Pair = 3 )
+        PLAY_FEE = 1  # ค่าธรรมเนียมกดเล่น
+        
+        # คำนวณคะแนนรวมใหม่ (คะแนนเดิม + แต้มคอมโบ - ค่ากด 1)
+        new_total_score = current_score + raw_score - PLAY_FEE
         
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
@@ -171,7 +174,7 @@ def api_play():
         # 4. บันทึกผลลัพธ์ย้อนกลับลง Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             updated_data = {
-                'total_score': new_total_score,
+                'total_score': new_total_score,  # บันทึกคะแนนรวมที่หัก -1 เรียบร้อยแล้ว
                 'player_luck': result.get("next_player_luck", player_sheet_info.get("player_luck", 0.0)),
                 'last_play_date': today_str,
                 'free_plays_used': new_free_plays_used,
@@ -183,13 +186,13 @@ def api_play():
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 🟢 5.1 บันทึกประวัติลง SQLite
+        # 🟢 5.1 บันทึกประวัติลง SQLite (ส่ง raw_score ไปแสดงในประวัติ)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=cards_str,
                 combo=combo_title,
-                score_gained=score_gained,
+                score_gained=raw_score,  # บันทึกแต้มดิบลงประวัติ (0, 3, 5 ฯลฯ)
                 final_score=new_total_score
             )
         except Exception as sqlite_err:
@@ -201,7 +204,7 @@ def api_play():
                 player_id=player_id,
                 cards=result.get("cards", []),
                 combo=combo_title,
-                score_gained=score_gained,
+                score_gained=raw_score,  # บันทึกแต้มดิบลงประวัติ Sheet
                 final_score=new_total_score
             )
         except Exception as sheet_err:
@@ -210,14 +213,15 @@ def api_play():
         session["total_score"] = new_total_score
         session["player_luck"] = result.get("next_player_luck", 0.0)
 
+        # 🟢 6. ส่ง Response กลับไปแสดงผลฝั่งผู้เล่น
         return jsonify({
             "success": True,
             "cards": result["cards"],
             "combo": combo_title,
             "combo_name": combo_title,
-            "score": score_gained,
-            "score_gained": score_gained,
-            "total_score": new_total_score,
+            "score": raw_score,             # แสดงแต้มคอมโบดิบ (0, 3, 5)
+            "score_gained": raw_score,      # แสดงแต้มคอมโบดิบ
+            "total_score": new_total_score, # คะแนนรวมใหม่ที่หักค่ากด -1 แต้มแล้ว
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left
         })
@@ -225,6 +229,7 @@ def api_play():
     except Exception as e:
         print(f"❌ Play API Error: {e}")
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
+
 
 @app.route("/ranking")
 def ranking():
@@ -269,7 +274,7 @@ def ranking():
 
 
 # -------------------------------------------------------------
-# 🟢 หน้าแสดงประวัติการเล่น (ดึงจาก SQLite ลื่นๆ ไม่ต้องรอดึงจาก Sheets)
+# 🟢 หน้าแสดงประวัติการเล่น (ดึงจาก SQLite)
 # -------------------------------------------------------------
 @app.route("/history")
 def history():
@@ -279,7 +284,6 @@ def history():
     player_id = str(session.get("player_id", "")).strip().upper()
     player_name = session.get("player_name", "ผู้เล่น")
     
-    # 🟢 ดึงจาก SQLite โดยตรง ป้องกันเว็บช้าเมื่อมีข้อมูลหลายพันแถว
     try:
         history_logs = get_player_history(player_id, limit=20)
     except Exception as e:
