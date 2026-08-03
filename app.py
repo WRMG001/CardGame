@@ -161,9 +161,10 @@ def api_play():
         if not result.get("success"):
             return jsonify({"success": False, "message": result.get("message", "ไม่สามารถเล่นได้")})
 
-        # 3. คำนวณคะแนนและสิทธิ์เล่นใหม่
-        score_gained = result.get("score_gained", 0)
-        new_total_score = current_score + score_gained
+        # 🟢 3. ดึงคะแนนสุทธิและคะแนนรวมใหม่ที่คำนวณเรียบร้อยแล้วจาก play_game()
+        score_gained = result.get("score_gained", 0) # เช่น -1 สำหรับ High Card
+        new_total_score = result.get("final_score", current_score + score_gained) # ดึงคะแนนรวมใหม่ที่หักค่าเล่น 1 แต้มแล้ว
+        
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
 
@@ -182,7 +183,7 @@ def api_play():
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 🟢 5.1 บันทึกประวัติลง SQLite (เพื่อดึงแสดงผลหน้า /history ไวๆ)
+        # 🟢 5.1 บันทึกประวัติลง SQLite
         try:
             log_game_play(
                 player_id=player_id,
@@ -194,7 +195,7 @@ def api_play():
         except Exception as sqlite_err:
             print(f"⚠️ SQLite Log Warning: {sqlite_err}")
 
-        # 🟢 5.2 บันทึกประวัติการเล่นลง Google Sheet "History" (ไว้ดูภาพรวมย้อนหลัง)
+        # 🟢 5.2 บันทึกประวัติการเล่นลง Google Sheet "History"
         try:
             save_game_history(
                 player_id=player_id,
@@ -224,7 +225,6 @@ def api_play():
     except Exception as e:
         print(f"❌ Play API Error: {e}")
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
-
 
 @app.route("/ranking")
 def ranking():
