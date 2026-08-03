@@ -34,9 +34,7 @@ def evaluate_joker_combo(cards):
     if joker_count >= 2:
         return {
             "combo": "Double Joker 🃏🃏",
-            "raw_score": 10,
-            "play_cost": 0,
-            "final_score": 10
+            "raw_score": 10
         }
 
     normal_cards = [c for c in cards if "Joker" not in str(c)]
@@ -45,16 +43,12 @@ def evaluate_joker_combo(cards):
     if len(ranks) == 2 and ranks[0] == ranks[1]:
         return {
             "combo": "Wild Triple 🎰",
-            "raw_score": 8,
-            "play_cost": 0,
-            "final_score": 8
+            "raw_score": 8
         }
     
     return {
         "combo": "Wild Pair 🃏✨",
-        "raw_score": 5,
-        "play_cost": 0,
-        "final_score": 5
+        "raw_score": 5
     }
 
 def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
@@ -90,8 +84,6 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
     if joker_result:
         combo_name = joker_result["combo"]
         raw_score = joker_result["raw_score"]
-        play_cost = joker_result["play_cost"]
-        final_score = joker_result["final_score"]
     else:
         try:
             combo_name = check_combo(cards)
@@ -100,12 +92,19 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
             combo_name = "High Card"
 
         try:
-            raw_score, play_cost, final_score, can_play = calculate_score(combo_name, player_score)
+            raw_score, play_cost, calculated_final, can_play = calculate_score(combo_name, player_score)
         except Exception as e:
             print(f"⚠️ Score Calculate Error: {e}")
             raw_score = 0
-            play_cost = 0
-            final_score = 0
+
+    # 🟢 ค่าเปิดไพ่จ่ายจากคะแนนสะสม 1 แต้มเสมอ
+    PLAY_COST = 1
+    
+    # 🟢 คะแนนสุทธิที่นำไปบวก/ลบ จากคะแนนสะสมเดิมของผู้เล่น (คะแนนคอมโบที่ได้ - ค่าเปิดไพ่ 1 แต้ม)
+    score_gained = raw_score - PLAY_COST  
+    
+    # 🟢 คำนวณคะแนนสะสมใหม่ (หักค่าเล่นจาก player_score แล้วบวกแต้มคอมโบเพิ่ม)
+    final_score = player_score + score_gained
 
     try:
         next_luck = update_player_luck(current_luck=player_luck, combo=combo_name, cards=cards)
@@ -118,10 +117,11 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=10):
         "cards": cards,
         "combo": combo_name,
         "combo_name": combo_name,
-        "score_gained": raw_score,
-        "score": raw_score,
-        "cost": play_cost,
-        "final_score": final_score,
+        "raw_score": raw_score,         # แต้มไพ่เพียวๆ (High Card = 0, One Pair = 3, ฯลฯ)
+        "cost": PLAY_COST,              # ค่าธรรมเนียมเปิดไพ่ = 1
+        "score_gained": score_gained,   # แต้มสุทธิประจำรอบที่จะส่งไปบันทึก (เช่น -1, +2, +7)
+        "score": score_gained,
+        "final_score": final_score,     # คะแนนสะสมสุทธิหลังหักจากแต้มเดิมที่มี
         "player_luck": player_luck,
         "event_luck": event_luck,
         "final_luck": final_luck,
