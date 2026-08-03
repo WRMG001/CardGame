@@ -11,7 +11,7 @@
       BLACK VEGAS
     </h1>
     <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
-      SEASON XX
+      SEASON 5
     </div>
   </div>
 
@@ -24,7 +24,7 @@
       <div>
         <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
         <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
-          {{ session.get('player_name', 'ผู้เล่น') }}
+          {{ session.get('player_name') or session.get('name') or 'ผู้เล่น' }}
         </h2>
       </div>
       <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
@@ -36,8 +36,8 @@
       <!-- Stat 1: Score -->
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
-        <span style="font-size: 20px; font-weight: bold; color: {% if user_score < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
-          {{ "{:,}".format(user_score|default(0)) }}
+        <span style="font-size: 20px; font-weight: bold; color: #fce0a2; margin-top: 4px; display: block;">
+          {{ user_score if user_score is defined and user_score is not none else 0 }}
         </span>
       </div>
 
@@ -45,7 +45,7 @@
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
         <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
-          {{ free_plays_used|default(0) }}/3
+          {{ free_plays_used if free_plays_used is defined and free_plays_used is not none else 0 }}/3
         </span>
       </div>
     </div>
@@ -56,28 +56,28 @@
     
     <!-- ปุ่มสุ่มไพ่ / Play -->
     <a href="/game" style="text-decoration: none;">
-      <button style="width: 100%; padding: 16px; background: linear-gradient(135deg, #801823, #4a0d14); color: #fff; border: 1.5px solid #a82835; border-radius: 14px; cursor: pointer; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(128, 24, 35, 0.4); transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+      <button style="width: 100%; padding: 16px; background: linear-gradient(135deg, #801823, #4a0d14); color: #fff; border: 1.5px solid #a82835; border-radius: 14px; cursor: pointer; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(128, 24, 35, 0.4); display: flex; align-items: center; justify-content: center; gap: 10px;">
         <span>🃏</span> เข้าสู่เกมเปิดไพ่
       </button>
     </a>
 
     <!-- ปุ่มตารางคะแนน (Ranking) -->
     <a href="/ranking" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; background: #1f080a; color: #fce0a2; border: 1px solid #d4af37; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+      <button style="width: 100%; padding: 14px; background: #1f080a; color: #fce0a2; border: 1px solid #d4af37; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
         <span>🏆</span> ตารางจัดอันดับ & รายชื่อผู้เล่น
       </button>
     </a>
 
     <!-- ปุ่มประวัติการสุ่ม (History) -->
     <a href="/history" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; background: #1f080a; color: #bfa181; border: 1px solid #4a151b; border-radius: 14px; cursor: pointer; font-weight: 500; font-size: 15px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+      <button style="width: 100%; padding: 14px; background: #1f080a; color: #bfa181; border: 1px solid #4a151b; border-radius: 14px; cursor: pointer; font-weight: 500; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
         <span>📜</span> ประวัติการเปิดไพ่ของฉัน
       </button>
     </a>
 
     <!-- ปุ่มออกจากระบบ (Logout) -->
     <div style="text-align: center; margin-top: 15px;">
-      <a href="/logout" style="color: #8c6e51; text-decoration: none; font-size: 13px; transition: 0.2s;">
+      <a href="/logout" style="color: #8c6e51; text-decoration: none; font-size: 13px;">
         🔒 ออกจากระบบ
       </a>
     </div>
