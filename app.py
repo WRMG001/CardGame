@@ -425,3 +425,71 @@ def admin_dashboard():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+# ==========================================
+# 📊 LEADERBOARD HELPER FUNCTIONS
+# ==========================================
+
+def get_all_players_data():
+    """
+    ดึงข้อมูลผู้เล่นทั้งหมดจาก Google Sheets / DB
+    (ปรับปรุงชื่อฟังก์ชันดึงข้อมูลเดิมที่มีอยู่ได้ครับ)
+    """
+    try:
+        # สมมติใช้ฟังก์ชันดึงรายชื่อผู้เล่นเดิมที่มีในระบบของคุณ
+        # ควรคืนค่าเป็น list ของ dict เช่น:
+        # [{'player_id': 'C01', 'player_name': 'Alex', 'role': 'C', 'total_score': 50, ...}]
+        players = get_all_players_from_sheet() # 👈 ใช้ฟังก์ชันดึงข้อมูลผู้เล่นเดิมของคุณตรงนี้
+        return players if players else []
+    except Exception as e:
+        print(f"⚠️ Error fetching all players: {e}")
+        return []
+
+def get_leaderboards_by_role():
+    """
+    จัดกลุ่ม Top 10 ตาม Role และ Top 10 ดวงกุด (คะแนนติดลบมากที่สุด)
+    """
+    all_players = get_all_players_data()
+    
+    # คำอธิบาย Role
+    role_names = {
+        'C': 'Customer',
+        'P': 'Partner',
+        'H': 'Host',
+        'BL': 'Black (Special Service)',
+        'BA': 'Bartender',
+        'W': 'Waiter',
+        'G': 'Security Guard'
+    }
+    
+    role_leaderboards = {code: [] for code in role_names.keys()}
+    
+    # แปลงคะแนนเป็น int ป้องกัน Error
+    valid_players = []
+    for p in all_players:
+        try:
+            p['score_int'] = int(p.get('total_score', 0))
+            valid_players.append(p)
+        except (ValueError, TypeError):
+            p['score_int'] = 0
+            valid_players.append(p)
+
+    # 1. จัดกลุ่ม Top 10 ของแต่ละ Role (คะแนนมากไปน้อย)
+    for code in role_names.keys():
+        # ดึงคนที่มี role หรือ ID ขึ้นต้นด้วย code
+        role_players = [
+            p for p in valid_players 
+            if str(p.get('role', '')).upper() == code or str(p.get('player_id', '')).upper().startswith(code)
+        ]
+        # เรียงลำดับคะแนนสูงสุด 10 อันดับแรก
+        sorted_role = sorted(role_players, key=lambda x: x['score_int'], reverse=True)[:10]
+        role_leaderboards[code] = sorted_role
+
+    # 2. Top 10 คนที่ได้แต้มน้อยที่สุด (คะแนนติดลบมากที่สุด / ดวงกุด)
+    worst_top10 = sorted(valid_players, key=lambda x: x['score_int'])[:10]
+
+    return {
+        "role_names": role_names,
+        "roles": role_leaderboards,
+        "worst_top10": worst_top10
+    }
