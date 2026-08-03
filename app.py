@@ -122,7 +122,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (โชว์แต้มดิบ + หัก -1 แต้มออกจาก Total Score)
+# 2. API สุ่มไพ่ (คิดคะแนนสุทธิแบบติดลบได้)
 # -------------------------------------------------------------
 # 🟢 ตารางแต้มดิบมาตรฐานของเกม (Raw Score)
 SCORE_MAP = {
@@ -163,26 +163,34 @@ def api_play():
             free_plays_used = player_sheet_info.get("free_plays_used", 0)
             bought_plays = player_sheet_info.get("bought_plays_used", 0)
 
-        current_score = player_sheet_info.get("total_score", 0)
+        # 🟢 ดึงคะแนนปัจจุบัน และแปลงเป็น int (รับค่าติดลบได้)
+        try:
+            current_score = int(player_sheet_info.get("total_score", 0))
+        except (ValueError, TypeError):
+            current_score = 0
         
         plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
         if plays_left <= 0:
             return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
 
-        # 2. เรียกสุ่มไพ่ (ดึงความโชคดีปัจจุบันมาใส่)
+        # 2. เรียกสุ่มไพ่
         current_luck = player_sheet_info.get("player_luck", 0.0)
         result = play_game(player_id=player_id, player_luck=current_luck, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"})
 
-        # 3. คำนวณคะแนนที่นี่ที่เดียว!
+        # 3. คำนวณคะแนนสุทธิแบบติดลบได้จริง
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
-        raw_score = SCORE_MAP.get(combo_title, 0) # แต้มดิบประจำคอมโบ
-        PLAY_FEE = 1 # หักค่ากดเล่น 1 แต้มเสมอ
+        raw_score = int(SCORE_MAP.get(combo_title, 0)) # แต้มดิบจากคอมโบ
+        PLAY_FEE = 1 # ค่าเล่น 1 แต้ม
         
-        # คะแนนรวมใหม่ = คะแนนเดิมใน Sheet + แต้มดิบ - 1
-        new_total_score = current_score + raw_score - PLAY_FEE
+        # 🟢 แต้มสุทธิที่ได้ในรอบนี้ (เช่น Flush (+5) - ค่าเล่น (1) = +4 แต้ม)
+        # หรือ High Card (0) - ค่าเล่น (1) = -1 แต้ม
+        net_score_gained = raw_score - PLAY_FEE
+        
+        # 🟢 คะแนนรวมใหม่สะสมจากคะแนนเดิม (ยอมให้ติดลบสะสม เช่น -1, -2, -3)
+        new_total_score = current_score + net_score_gained
         
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
@@ -200,7 +208,7 @@ def api_play():
 
         cards_str = ", ".join(result.get("cards", [])) if isinstance(result.get("cards"), list) else str(result.get("cards", ""))
 
-        # 5. บันทึกประวัติ (โชว์แต้มดิบ raw_score)
+        # 5. บันทึกประวัติ (ส่งแต้มดิบ และ คะแนนรวมสะสมที่คิดลบ/บวกถูกต้อง)
         try:
             log_game_play(
                 player_id=player_id,
@@ -228,9 +236,9 @@ def api_play():
             "cards": result["cards"],
             "combo": combo_title,
             "combo_name": combo_title,
-            "score": raw_score,             # แต้มดิบ
-            "score_gained": raw_score,      # แต้มดิบ
-            "total_score": new_total_score, # คะแนนรวมหลังคำนวณหัก 1 แล้ว
+            "score": raw_score,             # แต้มดิบประจำคอมโบ
+            "score_gained": raw_score,      # แต้มดิบประจำคอมโบ
+            "total_score": new_total_score, # คะแนนรวมสะสมจริง
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left
         })
@@ -350,7 +358,7 @@ def admin_dashboard():
                 
                 player_info = get_player_data(target_id)
                 if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
-                    new_score = player_info.get("total_score", 0) + score_change
+                    new_score = int(player_info.get("total_score", 0)) + score_change
                     updated_data = {
                         'total_score': new_score,
                         'player_luck': player_info.get("player_luck", 0.0),
