@@ -1,213 +1,88 @@
 {% extends 'base.html' %}
 
+{% block title %}หน้าหลัก - Black Vegas Season 5{% endblock %}
+
 {% block content %}
-<div style="max-width: 500px; margin: 40px auto; text-align: center; color: #f3e8d3; font-family: 'Kanit', sans-serif;">
+<div style="max-width: 500px; margin: 40px auto 80px auto; color: #f3e8d3; font-family: 'Kanit', sans-serif; padding: 0 15px;">
 
-  <!-- Header Section -->
-  <div style="margin-bottom: 25px;">
-    <div style="font-size: 42px;">🎴</div>
-    <h1 style="margin: 5px 0; font-size: 30px; letter-spacing: 2px; font-weight: 700; background: linear-gradient(135deg, #fce0a2, #d4af37, #aa7c11); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">BLACK VEGAS</h1>
-    <span style="color: #bfa181; font-size: 13px; letter-spacing: 1px;">SEASON ? • VERSION 0.1</span>
-  </div>
-
-  <!-- Player Profile Card -->
-  <div style="background: linear-gradient(145deg, #1f080a, #120304); border-radius: 16px; padding: 22px; border: 1px solid #5c1d24; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(0,0,0,0.6); position: relative; overflow: hidden;">
-    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #d4af37, transparent);"></div>
-    <h3 style="color: #fce0a2; margin: 0 0 6px 0; font-size: 20px; font-weight: 600;">Welcome, {{ player_name }}</h3>
-    <p style="color: #cbb29b; margin: 0 0 12px 0; font-size: 13px;">Code: <strong style="color: #fff;">{{ player_id }}</strong> | Role: <span style="color: #e5b869;">{{ role }}</span></p>
-    <div style="font-size: 17px; font-weight: bold; color: #ffd700; background: rgba(0,0,0,0.3); padding: 8px 15px; border-radius: 8px; border: 1px solid #4a151b; display: inline-block;">
-      คะแนนสะสม: {{ session.get('total_score', 0) }} แต้ม
+  <!-- Header Banner -->
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="margin: 0; font-size: 32px; letter-spacing: 3px; font-weight: 700; background: linear-gradient(135deg, #fce0a2, #d4af37, #aa7c11); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+      BLACK VEGAS
+    </h1>
+    <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
+      SEASON 5
     </div>
   </div>
 
-  <!-- Main Menu Buttons -->
-  <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px;">
-    <a href="/game" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: linear-gradient(135deg, #fce0a2, #d4af37); color: #1a0507; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(212,175,55,0.25);">
-        🎴 เปิดไพ่ (เสีย 1 แต้ม/รอบ)
-      </button>
-    </a>
+  <!-- 🎴 Card 1: Player Profile Status -->
+  <div style="background: linear-gradient(145deg, #1f080a, #120304); border-radius: 20px; padding: 25px; border: 1px solid #d4af37; box-shadow: 0 10px 30px rgba(0,0,0,0.7); position: relative; overflow: hidden; margin-bottom: 25px;">
+    <!-- Gold Glow Line -->
+    <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #d4af37, transparent);"></div>
 
-    <a href="/ranking" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #2b0b0e; color: #f3e8d3; border: 1px solid #5c1d24; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-        🏆 ตารางคะแนน & รายชื่อ
-      </button>
-    </a>
-
-    <a href="/history" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: #2b0b0e; color: #f3e8d3; border: 1px solid #5c1d24; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-        📜 ประวัติการเล่น
-      </button>
-    </a>
-
-    <!-- ปุ่มสำหรับ Admin -->
-    {% if role == 'admin' or session.get('player_id') in ['ADMIN01', 'ADMIN02', 'ADMIN03'] %}
-    <a href="/admin" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; font-size: 16px; font-weight: bold; background: linear-gradient(135deg, #aa7c11, #d4af37); color: #000; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 5px;">
-        ⚙️ จัดการระบบ (Admin Dashboard)
-      </button>
-    </a>
-    {% endif %}
-  </div>
-
-  <!-- 📊 LEADERBOARD WIDGET (แยกตาม Role & ดวงกุด) -->
-  <div style="background: linear-gradient(145deg, #1f080a, #120304); border-radius: 16px; padding: 20px; border: 1px solid #5c1d24; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(0,0,0,0.6); text-align: left;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <h3 style="color: #fce0a2; margin: 0; font-size: 17px; font-weight: 600;">🏆 อันดับสายงาน & ดวงกุด</h3>
-      <button onclick="loadRoleLeaderboard()" style="background: transparent; border: 1px solid #d4af37; color: #d4af37; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;">
-        🔄 รีเฟรช
-      </button>
+      <div>
+        <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
+        <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
+          {{ session.get('player_name', 'ผู้เล่น') }}
+        </h2>
+      </div>
+      <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
+        {{ session.get('player_id', 'ID') }}
+      </code>
     </div>
 
-    <!-- Role Filter Tabs -->
-    <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; border-bottom: 1px solid #3d1216;" id="lb-tabs">
-      <button onclick="switchTab('worst')" id="tab-worst" class="lb-btn active-tab" style="white-space: nowrap; background: #801823; color: #fff; border: 1px solid #a82835; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer;">💀 ดวงกุด</button>
-      <button onclick="switchTab('C')" id="tab-C" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Customer</button>
-      <button onclick="switchTab('P')" id="tab-P" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Partner</button>
-      <button onclick="switchTab('H')" id="tab-H" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Host</button>
-      <button onclick="switchTab('BL')" id="tab-BL" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Black Service</button>
-      <button onclick="switchTab('BA')" id="tab-BA" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Bartender</button>
-      <button onclick="switchTab('W')" id="tab-W" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Waiter</button>
-      <button onclick="switchTab('G')" id="tab-G" class="lb-btn" style="white-space: nowrap; background: #2b0b0e; color: #bfa181; border: 1px solid #4a151b; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;">Guard</button>
-    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
+      <!-- Stat 1: Score -->
+      <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
+        <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
+        <span style="font-size: 20px; font-weight: bold; color: {% if user_score < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
+          {{ "{:,}".format(user_score|default(0)) }}
+        </span>
+      </div>
 
-    <!-- Loading State -->
-    <div id="lb-loading" style="text-align: center; padding: 20px; color: #bfa181; font-size: 13px;">
-      กำลังโหลดข้อมูลอันดับ...
-    </div>
-
-    <!-- Table Display -->
-    <div id="lb-table-container" style="display: none; overflow-x: auto;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-        <thead>
-          <tr style="border-bottom: 1px solid #3d1216; color: #8c6e51; text-align: left;">
-            <th style="padding: 8px 4px; text-align: center; width: 15%;">อันดับ</th>
-            <th style="padding: 8px; width: 30%;">ID</th>
-            <th style="padding: 8px; width: 35%;">ชื่อ</th>
-            <th style="padding: 8px 4px; text-align: right; width: 20%;">คะแนน</th>
-          </tr>
-        </thead>
-        <tbody id="lb-tbody">
-          <!-- เติมข้อมูลจาก JS -->
-        </tbody>
-      </table>
+      <!-- Stat 2: Free Plays -->
+      <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
+        <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
+        <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
+          {{ free_plays_used|default(0) }}/3
+        </span>
+      </div>
     </div>
   </div>
 
-  <!-- Logout Button -->
-  <a href="/logout" style="text-decoration: none;">
-    <button style="width: 100%; padding: 12px; font-size: 15px; font-weight: bold; background: linear-gradient(135deg, #801823, #4a080f); color: #f3e8d3; border: 1px solid #a82835; border-radius: 10px; cursor: pointer;">
-      🚪 Logout
-    </button>
-  </a>
+  <!-- 🎯 Card 2: Main Menu Navigation -->
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    
+    <!-- ปุ่มสุ่มไพ่ / Play -->
+    <a href="/game" style="text-decoration: none;">
+      <button style="width: 100%; padding: 16px; background: linear-gradient(135deg, #801823, #4a0d14); color: #fff; border: 1.5px solid #a82835; border-radius: 14px; cursor: pointer; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(128, 24, 35, 0.4); transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <span>🃏</span> เข้าสู่เกมเปิดไพ่
+      </button>
+    </a>
+
+    <!-- ปุ่มตารางคะแนน (Ranking) -->
+    <a href="/ranking" style="text-decoration: none;">
+      <button style="width: 100%; padding: 14px; background: #1f080a; color: #fce0a2; border: 1px solid #d4af37; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <span>🏆</span> ตารางจัดอันดับ & รายชื่อผู้เล่น
+      </button>
+    </a>
+
+    <!-- ปุ่มประวัติการสุ่ม (History) -->
+    <a href="/history" style="text-decoration: none;">
+      <button style="width: 100%; padding: 14px; background: #1f080a; color: #bfa181; border: 1px solid #4a151b; border-radius: 14px; cursor: pointer; font-weight: 500; font-size: 15px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <span>📜</span> ประวัติการเปิดไพ่ของฉัน
+      </button>
+    </a>
+
+    <!-- ปุ่มออกจากระบบ (Logout) -->
+    <div style="text-align: center; margin-top: 15px;">
+      <a href="/logout" style="color: #8c6e51; text-decoration: none; font-size: 13px; transition: 0.2s;">
+        🔒 ออกจากระบบ
+      </a>
+    </div>
+
+  </div>
 
 </div>
-
-<!-- JavaScript สำหรับจัดการดึงและแสดงข้อมูล Leaderboard -->
-<script>
-let globalLeaderboardData = null;
-let currentTab = 'worst';
-
-async function loadRoleLeaderboard() {
-  const loading = document.getElementById('lb-loading');
-  const container = document.getElementById('lb-table-container');
-
-  loading.style.display = 'block';
-  container.style.display = 'none';
-
-  try {
-    const response = await fetch('/api/leaderboard/roles');
-    const result = await response.json();
-
-    if (result.success) {
-      globalLeaderboardData = result.data;
-      renderLeaderboardTable(currentTab);
-    } else {
-      loading.innerText = 'ไม่สามารถดึงข้อมูลได้';
-    }
-  } catch (err) {
-    console.error("Error fetching leaderboard:", err);
-    loading.innerText = 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
-  }
-}
-
-function switchTab(tabCode) {
-  currentTab = tabCode;
-  
-  // ปรับสไตล์ปุ่ม Tab
-  document.querySelectorAll('.lb-btn').forEach(btn => {
-    btn.style.background = '#2b0b0e';
-    btn.style.color = '#bfa181';
-    btn.style.border = '1px solid #4a151b';
-    btn.style.fontWeight = 'normal';
-  });
-
-  const activeBtn = document.getElementById(`tab-${tabCode}`);
-  if (activeBtn) {
-    if (tabCode === 'worst') {
-      activeBtn.style.background = '#801823';
-      activeBtn.style.color = '#fff';
-      activeBtn.style.border = '1px solid #a82835';
-    } else {
-      activeBtn.style.background = 'linear-gradient(135deg, #fce0a2, #d4af37)';
-      activeBtn.style.color = '#1a0507';
-      activeBtn.style.border = 'none';
-    }
-    activeBtn.style.fontWeight = 'bold';
-  }
-
-  renderLeaderboardTable(tabCode);
-}
-
-function renderLeaderboardTable(type) {
-  const tbody = document.getElementById('lb-tbody');
-  const loading = document.getElementById('lb-loading');
-  const container = document.getElementById('lb-table-container');
-  
-  tbody.innerHTML = '';
-
-  if (!globalLeaderboardData) return;
-
-  let players = [];
-  if (type === 'worst') {
-    players = globalLeaderboardData.worst_top10 || [];
-  } else {
-    players = (globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || [];
-  }
-
-  if (players.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีข้อมูลอันดับในหมวดนี้</td></tr>`;
-  } else {
-    players.forEach((p, idx) => {
-      const rank = idx + 1;
-      let rankBadge = `<span style="color: #bfa181;">${rank}</span>`;
-      if (rank === 1) rankBadge = `🥇`;
-      if (rank === 2) rankBadge = `🥈`;
-      if (rank === 3) rankBadge = `🥉`;
-
-      const scoreColor = p.total_score < 0 ? '#ff5252' : '#fce0a2';
-
-      const row = `
-        <tr style="border-bottom: 1px solid #2b0b0e;">
-          <td style="padding: 8px 4px; text-align: center;">${rankBadge}</td>
-          <td style="padding: 8px;"><code style="color: #ffd700; background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px;">${p.player_id}</code></td>
-          <td style="padding: 8px; color: #f3e8d3;">${p.player_name}</td>
-          <td style="padding: 8px 4px; text-align: right; font-weight: bold; color: ${scoreColor};">
-            ${p.total_score.toLocaleString()}
-          </td>
-        </tr>
-      `;
-      tbody.innerHTML += row;
-    });
-  }
-
-  loading.style.display = 'none';
-  container.style.display = 'block';
-}
-
-// โหลดข้อมูลอัตโนมัติเมื่อเปิดหน้า Home
-document.addEventListener("DOMContentLoaded", function() {
-  loadRoleLeaderboard();
-});
-</script>
 {% endblock %}
