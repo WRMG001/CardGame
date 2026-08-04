@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}หน้าหลัก - Black Vegas {% endblock %}
+{% block title %}หน้าหลัก - Black Vegas Season 5{% endblock %}
 
 {% block content %}
 <div style="max-width: 500px; margin: 40px auto 80px auto; color: #f3e8d3; font-family: 'Kanit', sans-serif; padding: 0 15px;">
@@ -11,7 +11,7 @@
       BLACK VEGAS
     </h1>
     <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
-      XXXXX
+      SEASON 5
     </div>
   </div>
 
@@ -23,16 +23,16 @@
       <div>
         <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
         <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
-          {{ player_name or 'ผู้เล่น' }}
+          {{ player_name }}
         </h2>
       </div>
       <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
-        {{ player_id or 'ID' }}
+        {{ player_id }}
       </code>
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
-      <!-- Stat 1: คะแนนรวมสะสม -->
+      <!-- Stat 1: คะแนนรวมสะสมจริง -->
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
         <span style="font-size: 20px; font-weight: bold; color: {% if total_score and total_score < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
@@ -40,7 +40,7 @@
         </span>
       </div>
 
-      <!-- Stat 2: สิทธิ์เปิดไพ่วันนี้ -->
+      <!-- Stat 2: สิทธิ์เปิดไพ่วันนี้จริง -->
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
         <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
