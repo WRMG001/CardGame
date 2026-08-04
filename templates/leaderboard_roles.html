@@ -3,191 +3,365 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leaderboard - แยกตาม Role</title>
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Leaderboard & Player List</title>
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Kanit', 'Prompt', sans-serif;
+        }
+
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: 'Kanit', sans-serif;
+            background-color: #0d0304;
+            color: #f3e8d3;
             min-height: 100vh;
-            padding-bottom: 50px;
-        }
-        .nav-card {
-            background: #1e293b;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-        }
-        .role-card {
-            background: #1e293b;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-            margin-bottom: 25px;
-            overflow: hidden;
-        }
-        .role-header {
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            color: white;
-            padding: 12px 20px;
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-        .worst-header {
-            background: linear-gradient(135deg, #ef4444, #991b1b);
-            color: white;
-            padding: 12px 20px;
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-        .table-custom {
-            color: #cbd5e1;
-            margin-bottom: 0;
-        }
-        .table-custom th {
-            background-color: #0f172a;
-            color: #94a3b8;
-            border-bottom: 1px solid #334155;
-            font-weight: 500;
-        }
-        .table-custom td {
-            border-bottom: 1px solid #334155;
-            vertical-align: middle;
-        }
-        .rank-badge {
-            width: 28px;
-            height: 28px;
-            display: inline-flex;
+            padding: 30px 15px;
+            display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            font-weight: bold;
+            gap: 25px;
+        }
+
+        .card-box {
+            width: 100%;
+            max-width: 600px;
+            background: linear-gradient(145deg, #1f0709, #120304);
+            border: 2px solid #5c181e;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(139, 0, 0, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1, .header h2 {
+            color: #ffd700;
+            font-size: 1.6rem;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            color: #bfa181;
             font-size: 0.85rem;
         }
-        .rank-1 { background-color: #f59e0b; color: #78350f; }
-        .rank-2 { background-color: #94a3b8; color: #0f172a; }
-        .rank-3 { background-color: #b45309; color: #fff; }
-        .rank-other { background-color: #334155; color: #94a3b8; }
-        .btn-back {
-            background-color: #334155;
-            color: white;
-            border: none;
+
+        .role-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 15px;
         }
+
+        .tab-btn {
+            background: #2b0b0e;
+            color: #d1b89d;
+            border: 1px solid #4a1519;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: #4a1519;
+            color: #fff;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #0088cc, #005588);
+            color: #fff;
+            font-weight: bold;
+            border-color: #00aaff;
+            box-shadow: 0 0 8px rgba(0, 170, 255, 0.4);
+        }
+
+        .tab-btn.worst {
+            background: #3a0d10;
+            border-color: #8b0000;
+            color: #ff8b8b;
+        }
+
+        .tab-btn.worst.active {
+            background: linear-gradient(135deg, #ff4d4d, #8b0000);
+            color: #fff;
+            border-color: #ff9999;
+            box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
+        }
+
+        .table-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #3d1216;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .scrollable-table {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .scrollable-table::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollable-table::-webkit-scrollbar-thumb {
+            background: #5c181e;
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: #2b0b0e;
+            color: #ffd700;
+            padding: 10px 8px;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #5c181e;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        td {
+            padding: 10px 8px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #2b0b0e;
+        }
+
+        .code-tag {
+            color: #ffd700;
+            background: rgba(0,0,0,0.4);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #3d1216;
+            font-family: monospace;
+        }
+
+        .btn-back {
+            display: block;
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            background: #2b0b0e;
+            color: #ffd700;
+            border: 1px solid #5c181e;
+            padding: 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
         .btn-back:hover {
-            background-color: #475569;
-            color: white;
+            background: #4a1519;
+            color: #fff;
         }
     </style>
 </head>
 <body>
 
-<div class="container mt-4">
-    <!-- Navigation / Top Bar -->
-    <div class="nav-card d-flex justify-content-between align-items-center">
-        <div>
-            <h4 class="m-0 text-warning">🏆 Leaderboard แยกตามสายงาน</h4>
-            <small class="text-muted">ยินดีต้อนรับคุณ {{ player_name }} ({{ player_id }})</small>
+    <!-- 🏆 กรอบที่ 1: LEADERBOARD -->
+    <div class="card-box">
+        <div class="header">
+            <h1>🏆 LEADERBOARD 🏆</h1>
+            <p>ตารางอันดับผู้เล่นสูงสุดประจำเซิร์ฟเวอร์</p>
         </div>
-        <div>
-            <a href="/home" class="btn btn-back btn-sm px-3">🔙 กลับหน้าหลัก</a>
-        </div>
-    </div>
 
-    <!-- Section: Top 10 ดวงกุด (แต้มน้อยที่สุด/ติดลบ) -->
-    <div class="role-card">
-        <div class="worst-header d-flex justify-content-between align-items-center">
-            <span>💀 Top 10 อันดับดวงกุด (แต้มต่ำที่สุด)</span>
-            <small>อัปเดตเรียลไทม์</small>
+        <div class="role-tabs">
+            <button class="tab-btn active" onclick="switchLbTab('ALL', this)">🌟 รวมทั้งหมด</button>
+            <button class="tab-btn" onclick="switchLbTab('C', this)">Customer</button>
+            <button class="tab-btn" onclick="switchLbTab('P', this)">Partner</button>
+            <button class="tab-btn" onclick="switchLbTab('H', this)">Host</button>
+            <button class="tab-btn" onclick="switchLbTab('BL', this)">Black</button>
+            <button class="tab-btn" onclick="switchLbTab('BA', this)">Bartender</button>
+            <button class="tab-btn" onclick="switchLbTab('W', this)">Waiter</button>
+            <button class="tab-btn" onclick="switchLbTab('G', this)">Guard</button>
+            <button class="tab-btn worst" onclick="switchLbTab('worst', this)">💀 ดวงกุด</button>
         </div>
-        <div class="table-responsive">
-            <table class="table table-custom">
+
+        <div class="table-card">
+            <table>
                 <thead>
                     <tr>
-                        <th class="text-center" style="width: 10%;">อันดับ</th>
-                        <th style="width: 30%;">Player ID</th>
-                        <th style="width: 40%;">ชื่อผู้เล่น</th>
-                        <th class="text-end" style="width: 20%;">คะแนนรวม</th>
+                        <th style="width: 15%; text-align: center;">อันดับ</th>
+                        <th style="width: 25%;">รหัสตัวละคร</th>
+                        <th style="width: 40%;">Code name</th>
+                        <th style="width: 20%; text-align: right;">คะแนน</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% if worst_top10 %}
-                        {% for player in worst_top10 %}
-                        <tr>
-                            <td class="text-center">
-                                <span class="rank-badge rank-other">{{ loop.index }}</span>
-                            </td>
-                            <td><code>{{ player.player_id }}</code></td>
-                            <td>{{ player.player_name }}</td>
-                            <td class="text-end text-danger fw-bold">{{ "{:,}".format(player.total_score) }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูลดวงกุด</td>
-                        </tr>
-                    {% endif %}
+                <tbody id="lb-tbody">
+                    <!-- ข้อมูลจะถูกแสดงผ่าน JS -->
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Section: Top 10 แยกตามแต่ละ Role -->
-    <div class="row">
-        {% for code, name in role_names.items() %}
-        <div class="col-md-6 col-lg-6">
-            <div class="role-card">
-                <div class="role-header d-flex justify-content-between align-items-center">
-                    <span>👑 {{ name }} ({{ code }})</span>
-                    <small class="badge bg-dark">Top 10</small>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-custom">
-                        <thead>
-                            <tr>
-                                <th class="text-center" style="width: 15%;">อันดับ</th>
-                                <th style="width: 35%;">Player ID</th>
-                                <th style="width: 30%;">ชื่อ</th>
-                                <th class="text-end" style="width: 20%;">คะแนน</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% set players = roles_data.get(code, []) %}
-                            {% if players %}
-                                {% for player in players %}
-                                <tr>
-                                    <td class="text-center">
-                                        {% if loop.index == 1 %}
-                                            <span class="rank-badge rank-1">1</span>
-                                        {% elif loop.index == 2 %}
-                                            <span class="rank-badge rank-2">2</span>
-                                        {% elif loop.index == 3 %}
-                                            <span class="rank-badge rank-3">3</span>
-                                        {% else %}
-                                            <span class="rank-badge rank-other">{{ loop.index }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td><code>{{ player.player_id }}</code></td>
-                                    <td>{{ player.player_name }}</td>
-                                    <td class="text-end text-success fw-bold">{{ "{:,}".format(player.total_score) }}</td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูลในสายงานนี้</td>
-                                </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+
+    <!-- 👥 กรอบที่ 2: รายชื่อทุกคนแยกสายงาน (กรอบล่าง) -->
+    <div class="card-box">
+        <div class="header">
+            <h2>👥 รายชื่อผู้เล่นทั้งหมดแยกตามสายงาน</h2>
+            <p>ตรวจสอบรายชื่อและสถานะโควตาการเล่น</p>
         </div>
-        {% endfor %}
+
+        <div class="role-tabs">
+            {% if grouped_players %}
+                {% for group_name in grouped_players.keys() %}
+                    <button class="tab-btn {% if loop.first %}active{% endif %}" onclick="switchGroupTab('{{ group_name }}', this)">
+                        {{ group_name }}
+                    </button>
+                {% endfor %}
+            {% else %}
+                <button class="tab-btn active">ผู้เล่นทั้งหมด</button>
+            {% endif %}
+        </div>
+
+        <div class="table-card scrollable-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 10%; text-align: center;">#</th>
+                        <th style="width: 30%;">รหัสตัวละคร</th>
+                        <th style="width: 40%;">Code name</th>
+                        <th style="width: 20%; text-align: right;">คะแนนสะสม</th>
+                    </tr>
+                </thead>
+                <tbody id="group-tbody">
+                    <!-- ข้อมูลจะถูกแสดงผ่าน JS -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
-</div>
+    <a href="/home" class="btn-back">⬅️ กลับหน้าหลัก</a>
 
+
+    <!-- 🎯 SCRIPT รวมทั้ง 2 กรอบ -->
+    <script>
+      const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
+      const globalGroupedPlayers = {{ grouped_players | tojson | safe if grouped_players else '{}' }};
+
+      // ฟังก์ชันช่วยดึง Property โดยไม่สนตัวพิมพ์เล็ก-ใหญ่ และเว้นวรรค
+      function getProp(obj, keys) {
+        if (!obj) return null;
+        for (let k of keys) {
+          const targetKey = k.toLowerCase().replace(/ /g, '_');
+          const foundKey = Object.keys(obj).find(
+            key => key.trim().toLowerCase().replace(/ /g, '_') === targetKey
+          );
+          if (foundKey && obj[foundKey] !== undefined && obj[foundKey] !== null) {
+            const val = String(obj[foundKey]).trim();
+            if (val !== '') return obj[foundKey];
+          }
+        }
+        return null;
+      }
+
+      // 1. Render กรอบบน (Leaderboard)
+      function renderLeaderboardTable(type) {
+        const tbody = document.getElementById('lb-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        let players = [];
+        if (type === 'worst') {
+          players = globalLeaderboardData.worst_top10 || [];
+        } else if (type === 'ALL') {
+          players = globalLeaderboardData.overall_top10 || [];
+        } else {
+          players = (globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || [];
+        }
+
+        if (!players || players.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีข้อมูลอันดับในหมวดนี้</td></tr>`;
+          return;
+        }
+
+        players.forEach((p, idx) => {
+          const rank = idx + 1;
+          let rankBadge = `<span style="color: #bfa181;">${rank}</span>`;
+          if (rank === 1) rankBadge = `🥇`;
+          if (rank === 2) rankBadge = `🥈`;
+          if (rank === 3) rankBadge = `🥉`;
+
+          const charId = p.character_id || p.player_id || getProp(p, ['รหัสตัวละคร', 'id']) || '-';
+          const codeName = p.code_name || p.player_name || getProp(p, ['code_name', 'codename', 'code name', 'name', 'ชื่อ']) || charId;
+          const rawScore = (p.total_score !== undefined) ? p.total_score : getProp(p, ['score', 'คะแนน']);
+          const score = (rawScore !== null && rawScore !== undefined) ? Number(rawScore) : 0;
+          const scoreColor = score < 0 ? '#ff5252' : '#fce0a2';
+
+          tbody.innerHTML += `
+            <tr>
+              <td style="text-align: center;">${rankBadge}</td>
+              <td><code class="code-tag">${charId}</code></td>
+              <td style="color: #f3e8d3; font-weight: 500;">${codeName}</td>
+              <td style="text-align: right; font-weight: bold; color: ${scoreColor};">${score.toLocaleString()}</td>
+            </tr>
+          `;
+        });
+      }
+
+      function switchLbTab(type, btn) {
+        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderLeaderboardTable(type);
+      }
+
+      // 2. Render กรอบล่าง (รายชื่อแยกสายงาน)
+      function renderGroupTable(groupName) {
+        const tbody = document.getElementById('group-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const players = globalGroupedPlayers[groupName] || [];
+
+        if (!players || players.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีรายชื่อผู้เล่นในกลุ่มนี้</td></tr>`;
+          return;
+        }
+
+        players.forEach((p, idx) => {
+          const charId = p.character_id || p.player_id || getProp(p, ['รหัสตัวละคร', 'id']) || '-';
+          const codeName = p.code_name || p.player_name || getProp(p, ['code_name', 'codename', 'code name', 'name', 'ชื่อ']) || charId;
+          const rawScore = (p.total_score !== undefined) ? p.total_score : getProp(p, ['score', 'คะแนน']);
+          const score = (rawScore !== null && rawScore !== undefined) ? Number(rawScore) : 0;
+
+          tbody.innerHTML += `
+            <tr>
+              <td style="text-align: center; color: #8c6e51;">${idx + 1}</td>
+              <td><code class="code-tag">${charId}</code></td>
+              <td style="color: #f3e8d3; font-weight: 500;">${codeName}</td>
+              <td style="text-align: right; font-weight: bold; color: #fce0a2;">${score.toLocaleString()}</td>
+            </tr>
+          `;
+        });
+      }
+
+      function switchGroupTab(groupName, btn) {
+        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderGroupTable(groupName);
+      }
+
+      // ทำงานทันทีเมื่อโหลดหน้าเว็บ
+      document.addEventListener("DOMContentLoaded", function() {
+        renderLeaderboardTable('ALL');
+
+        const firstGroup = Object.keys(globalGroupedPlayers)[0];
+        if (firstGroup) {
+          renderGroupTable(firstGroup);
+        }
+      });
+    </script>
 </body>
 </html>
