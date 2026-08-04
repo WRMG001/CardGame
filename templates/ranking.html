@@ -82,6 +82,19 @@
             box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
         }
 
+        .tab-btn.overall {
+            background: #1a2a3a;
+            border-color: #2b4c6f;
+            color: #8ab4f8;
+        }
+
+        .tab-btn.overall.active {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            color: #fff;
+            border-color: #80d8ff;
+            box-shadow: 0 0 8px rgba(0, 198, 255, 0.5);
+        }
+
         .tab-btn.worst {
             background: #3a0d10;
             border-color: #8b0000;
@@ -149,12 +162,13 @@
 <div class="container">
     <div class="header">
         <h1>🏆 LEADERBOARD 🏆</h1>
-        <p>ตารางอันดับผู้เล่นแยกตามสายอาชีพ</p>
+        <p>ตารางอันดับผู้เล่นสูงสุดประจำเซิร์ฟเวอร์</p>
     </div>
 
-    <!-- 🔘 ปุ่มกดเลือกดูตาม Role -->
+    <!-- 🔘 ปุ่มกดเลือกดูตาม Overall / Role / ดวงกุด -->
     <div class="role-tabs">
-        <button class="tab-btn active" onclick="switchTab('C', this)">Customer</button>
+        <button class="tab-btn overall active" onclick="switchTab('ALL', this)">🌟 รวมทั้งหมด</button>
+        <button class="tab-btn" onclick="switchTab('C', this)">Customer</button>
         <button class="tab-btn" onclick="switchTab('P', this)">Partner</button>
         <button class="tab-btn" onclick="switchTab('H', this)">Host</button>
         <button class="tab-btn" onclick="switchTab('BL', this)">Black</button>
@@ -204,16 +218,22 @@
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    if (!globalLeaderboardData || (!globalLeaderboardData.roles && !globalLeaderboardData.worst_top10)) {
+    if (!globalLeaderboardData) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่พบข้อมูลตารางคะแนน</td></tr>`;
       if (loading) loading.style.display = 'none';
       if (container) container.style.display = 'block';
       return;
     }
 
-    let players = (type === 'worst') 
-      ? (globalLeaderboardData.worst_top10 || []) 
-      : ((globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || []);
+    let players = [];
+    if (type === 'worst') {
+      players = globalLeaderboardData.worst_top10 || [];
+    } else if (type === 'ALL') {
+      // ดึง Top 10 ของผู้เล่นทั้งหมด
+      players = globalLeaderboardData.overall_top10 || [];
+    } else {
+      players = (globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || [];
+    }
 
     if (!players || players.length === 0) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีข้อมูลอันดับในหมวดนี้</td></tr>`;
@@ -228,7 +248,6 @@
         const score = (p.total_score !== undefined) ? p.total_score : 0;
         const scoreColor = score < 0 ? '#ff5252' : '#fce0a2';
         
-        // รองรับ fallback ชื่อผู้เล่นหลากหลายรูปแบบ
         const displayName = p.code_name || p.player_name || p.name || 'ผู้เล่น';
 
         tbody.innerHTML += `
@@ -253,9 +272,9 @@
     renderLeaderboardTable(roleCode);
   }
 
-  // 4. สั่งให้แสดงผลทันทีหลังจากโหลด DOM เสร็จสิ้น
+  // 4. สั่งให้แสดงผลทันทีหลังจากโหลด DOM เสร็จสิ้น (เริ่มต้นด้วย Overall)
   document.addEventListener("DOMContentLoaded", function() {
-    renderLeaderboardTable('C'); // เริ่มต้นแสดงหมวด Customer
+    renderLeaderboardTable('ALL');
   });
 </script>
 
