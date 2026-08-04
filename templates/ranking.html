@@ -1,44 +1,263 @@
-<!-- 🎯 ต้องมีแท็ก <script> ปิดหัวปิดท้ายแบบนี้ครับ -->
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard - อันดับผู้เล่น</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Kanit', 'Prompt', sans-serif;
+        }
+
+        body {
+            background-color: #0d0304;
+            color: #f3e8d3;
+            min-height: 100vh;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: linear-gradient(145deg, #1f0709, #120304);
+            border: 2px solid #5c181e;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(139, 0, 0, 0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #ffd700;
+            font-size: 1.8rem;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #bfa181;
+            font-size: 0.9rem;
+        }
+
+        /* 🔘 แท็บสลับหมวดหมู่ / Role */
+        .role-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            background: #2b0b0e;
+            color: #d1b89d;
+            border: 1px solid #4a1519;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: #4a1519;
+            color: #fff;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #ffd700, #b8860b);
+            color: #000;
+            font-weight: bold;
+            border-color: #ffe87c;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+        }
+
+        .tab-btn.worst {
+            background: #3a0d10;
+            border-color: #8b0000;
+            color: #ff8b8b;
+        }
+
+        .tab-btn.worst.active {
+            background: linear-gradient(135deg, #ff4d4d, #8b0000);
+            color: #fff;
+            border-color: #ff9999;
+            box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
+        }
+
+        /* 📊 ตารางแสดงผล */
+        .table-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #3d1216;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: #2b0b0e;
+            color: #ffd700;
+            padding: 10px;
+            font-size: 0.85rem;
+            border-bottom: 2px solid #5c181e;
+        }
+
+        td {
+            padding: 10px 8px;
+            font-size: 0.9rem;
+        }
+
+        /* 🔙 ปุ่มย้อนกลับ */
+        .btn-back {
+            display: block;
+            width: 100%;
+            text-align: center;
+            background: #2b0b0e;
+            color: #ffd700;
+            border: 1px solid #5c181e;
+            padding: 10px;
+            border-radius: 8px;
+            text-decoration: none;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-back:hover {
+            background: #4a1519;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🏆 LEADERBOARD 🏆</h1>
+        <p>ตารางอันดับผู้เล่นแยกตามสายอาชีพ</p>
+    </div>
+
+    <!-- 🔘 ปุ่มกดเลือกดูตาม Role -->
+    <div class="role-tabs">
+        <button class="tab-btn active" onclick="switchTab('C', this)">Customer</button>
+        <button class="tab-btn" onclick="switchTab('P', this)">Partner</button>
+        <button class="tab-btn" onclick="switchTab('H', this)">Host</button>
+        <button class="tab-btn" onclick="switchTab('BL', this)">Black</button>
+        <button class="tab-btn" onclick="switchTab('BA', this)">Bartender</button>
+        <button class="tab-btn" onclick="switchTab('W', this)">Waiter</button>
+        <button class="tab-btn" onclick="switchTab('G', this)">Guard</button>
+        <button class="tab-btn worst" onclick="switchTab('worst', this)">💀 ดวงกุด</button>
+    </div>
+
+    <!-- 📊 โซนแสดงตารางคะแนน -->
+    <div class="table-card">
+        <div id="lb-loading" style="text-align: center; color: #ffd700; padding: 25px;">
+            กำลังโหลดข้อมูลอันดับ...
+        </div>
+
+        <div id="lb-table-container" style="display: none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 12%; text-align: center;">อันดับ</th>
+                        <th style="width: 28%;">ID</th>
+                        <th style="width: 38%;">ชื่อผู้เล่น</th>
+                        <th style="width: 22%; text-align: right;">คะแนน</th>
+                    </tr>
+                </thead>
+                <tbody id="lb-tbody">
+                    <!-- ข้อมูลจะถูกวาดจาก JS ด้านล่าง -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <a href="/home" class="btn-back">⬅️ กลับหน้าหลัก</a>
+</div>
+
+<!-- 🎯 SCRIPT ฝั่ง Frontend ดึงข้อมูลจาก Flask 🎯 -->
 <script>
-function renderLeaderboardTable(type) {
-  const tbody = document.getElementById('lb-tbody');
-  const loading = document.getElementById('lb-loading');
-  const container = document.getElementById('lb-table-container');
-  
-  if(!tbody) return;
-  tbody.innerHTML = '';
+  // 1. รับค่า leaderboard_data จาก Python Flask
+  const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
 
-  if (!globalLeaderboardData) return;
+  // 2. ฟังก์ชันวาดตาราง Leaderboard
+  function renderLeaderboardTable(type) {
+    const tbody = document.getElementById('lb-tbody');
+    const loading = document.getElementById('lb-loading');
+    const container = document.getElementById('lb-table-container');
+    
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
-  let players = (type === 'worst') ? (globalLeaderboardData.worst_top10 || []) : ((globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || []);
+    if (!globalLeaderboardData || (!globalLeaderboardData.roles && !globalLeaderboardData.worst_top10)) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่พบข้อมูลตารางคะแนน</td></tr>`;
+      if (loading) loading.style.display = 'none';
+      if (container) container.style.display = 'block';
+      return;
+    }
 
-  if (players.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีข้อมูลอันดับในหมวดนี้</td></tr>`;
-  } else {
-    players.forEach((p, idx) => {
-      const rank = idx + 1;
-      let rankBadge = `<span style="color: #bfa181;">${rank}</span>`;
-      if (rank === 1) rankBadge = `🥇`;
-      if (rank === 2) rankBadge = `🥈`;
-      if (rank === 3) rankBadge = `🥉`;
+    let players = (type === 'worst') 
+      ? (globalLeaderboardData.worst_top10 || []) 
+      : ((globalLeaderboardData.roles && globalLeaderboardData.roles[type]) || []);
 
-      const scoreColor = p.total_score < 0 ? '#ff5252' : '#fce0a2';
-      
-      // ดึงชื่อ Code Name หรือ Fallback ชื่ออื่น ๆ
-      const displayName = p.code_name || p.player_name || p.name || 'ผู้เล่น';
+    if (!players || players.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีข้อมูลอันดับในหมวดนี้</td></tr>`;
+    } else {
+      players.forEach((p, idx) => {
+        const rank = idx + 1;
+        let rankBadge = `<span style="color: #bfa181;">${rank}</span>`;
+        if (rank === 1) rankBadge = `🥇`;
+        if (rank === 2) rankBadge = `🥈`;
+        if (rank === 3) rankBadge = `🥉`;
 
-      tbody.innerHTML += `
-        <tr style="border-bottom: 1px solid #2b0b0e;">
-          <td style="padding: 8px 4px; text-align: center;">${rankBadge}</td>
-          <td style="padding: 8px;"><code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; border: 1px solid #3d1216;">${p.player_id}</code></td>
-          <td style="padding: 8px; color: #f3e8d3; font-weight: 500;">${displayName}</td>
-          <td style="padding: 8px 4px; text-align: right; font-weight: bold; color: ${scoreColor};">${p.total_score.toLocaleString()}</td>
-        </tr>
-      `;
-    });
+        const score = (p.total_score !== undefined) ? p.total_score : 0;
+        const scoreColor = score < 0 ? '#ff5252' : '#fce0a2';
+        
+        // รองรับ fallback ชื่อผู้เล่นหลากหลายรูปแบบ
+        const displayName = p.code_name || p.player_name || p.name || 'ผู้เล่น';
+
+        tbody.innerHTML += `
+          <tr style="border-bottom: 1px solid #2b0b0e;">
+            <td style="padding: 8px 4px; text-align: center;">${rankBadge}</td>
+            <td style="padding: 8px;"><code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; border: 1px solid #3d1216;">${p.player_id}</code></td>
+            <td style="padding: 8px; color: #f3e8d3; font-weight: 500;">${displayName}</td>
+            <td style="padding: 8px 4px; text-align: right; font-weight: bold; color: ${scoreColor};">${score.toLocaleString()}</td>
+          </tr>
+        `;
+      });
+    }
+
+    if (loading) loading.style.display = 'none';
+    if (container) container.style.display = 'block';
   }
 
-  if(loading) loading.style.display = 'none';
-  if(container) container.style.display = 'block';
-}
+  // 3. ฟังก์ชันสลับแท็บ
+  function switchTab(roleCode, btnElement) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    if (btnElement) btnElement.classList.add('active');
+    renderLeaderboardTable(roleCode);
+  }
+
+  // 4. สั่งให้แสดงผลทันทีหลังจากโหลด DOM เสร็จสิ้น
+  document.addEventListener("DOMContentLoaded", function() {
+    renderLeaderboardTable('C'); // เริ่มต้นแสดงหมวด Customer
+  });
 </script>
+
+</body>
+</html>
