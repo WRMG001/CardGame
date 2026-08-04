@@ -23,7 +23,6 @@
             gap: 25px;
         }
 
-        /* 🔴 กรอบหลักสไตล์ รูปที่ 1 */
         .card-box {
             width: 100%;
             max-width: 600px;
@@ -51,7 +50,6 @@
             font-size: 0.85rem;
         }
 
-        /* 🔘 แท็บปุ่มกด */
         .role-tabs {
             display: flex;
             flex-wrap: wrap;
@@ -97,7 +95,6 @@
             box-shadow: 0 0 8px rgba(255, 77, 77, 0.5);
         }
 
-        /* 📊 ตาราง */
         .table-card {
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid #3d1216;
@@ -110,7 +107,6 @@
             overflow-y: auto;
         }
 
-        /* แถบ Scrollbar */
         .scrollable-table::-webkit-scrollbar {
             width: 6px;
         }
@@ -151,7 +147,6 @@
             font-family: monospace;
         }
 
-        /* 🔙 ปุ่มย้อนกลับ */
         .btn-back {
             display: block;
             width: 100%;
@@ -175,14 +170,13 @@
 </head>
 <body>
 
-    <!-- 🏆 กรอบที่ 1: LEADERBOARD (ตามรูปที่ 1) -->
+    <!-- 🏆 กรอบที่ 1: LEADERBOARD -->
     <div class="card-box">
         <div class="header">
             <h1>🏆 LEADERBOARD 🏆</h1>
             <p>ตารางอันดับผู้เล่นสูงสุดประจำเซิร์ฟเวอร์</p>
         </div>
 
-        <!-- แท็บสลับ Leaderboard -->
         <div class="role-tabs">
             <button class="tab-btn active" onclick="switchLbTab('ALL', this)">🌟 รวมทั้งหมด</button>
             <button class="tab-btn" onclick="switchLbTab('C', this)">Customer</button>
@@ -199,28 +193,27 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 12%; text-align: center;">อันดับ</th>
-                        <th style="width: 25%;">ID</th>
-                        <th style="width: 43%;">ชื่อผู้เล่น (Code Name)</th>
+                        <th style="width: 15%; text-align: center;">อันดับ</th>
+                        <th style="width: 25%;">รหัสตัวละคร</th>
+                        <th style="width: 40%;">Code name</th>
                         <th style="width: 20%; text-align: right;">คะแนน</th>
                     </tr>
                 </thead>
                 <tbody id="lb-tbody">
-                    <!-- แสดงผลด้วย JS -->
+                    <!-- ข้อมูลจะถูกแสดงผ่าน JS -->
                 </tbody>
             </table>
         </div>
     </div>
 
 
-    <!-- 📋 กรอบที่ 2: รายชื่อผู้เล่นทั้งหมด (ตามรูปเก่าด้านล่าง) -->
+    <!-- 👥 กรอบที่ 2: รายชื่อทุกคนแยกสายงาน (กรอบล่าง) -->
     <div class="card-box">
         <div class="header">
-            <h2>👥 รายชื่อผู้เล่นทั้งหมด</h2>
+            <h2>👥 รายชื่อผู้เล่นทั้งหมดแยกตามสายงาน</h2>
             <p>ตรวจสอบรายชื่อและสถานะโควตาการเล่น</p>
         </div>
 
-        <!-- แท็บสลับกลุ่มสายงาน -->
         <div class="role-tabs">
             {% if grouped_players %}
                 {% for group_name in grouped_players.keys() %}
@@ -238,13 +231,13 @@
                 <thead>
                     <tr>
                         <th style="width: 10%; text-align: center;">#</th>
-                        <th style="width: 30%;">ผู้เล่น</th>
-                        <th style="width: 30%; text-align: center;">สิทธิ์วันนี้</th>
-                        <th style="width: 30%; text-align: right;">คะแนนสะสม</th>
+                        <th style="width: 30%;">รหัสตัวละคร</th>
+                        <th style="width: 40%;">Code name</th>
+                        <th style="width: 20%; text-align: right;">คะแนนสะสม</th>
                     </tr>
                 </thead>
                 <tbody id="group-tbody">
-                    <!-- แสดงผลด้วย JS -->
+                    <!-- ข้อมูลจะถูกแสดงผ่าน JS -->
                 </tbody>
             </table>
         </div>
@@ -253,13 +246,12 @@
     <a href="/home" class="btn-back">⬅️ กลับหน้าหลัก</a>
 
 
-    <!-- 🎯 SCRIPT ทำงานด้านหลัง 🎯 -->
+    <!-- 🎯 SCRIPT รวมทั้ง 2 กรอบ -->
     <script>
-      // 1. รับข้อมูลจาก Controller
       const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
       const globalGroupedPlayers = {{ grouped_players | tojson | safe if grouped_players else '{}' }};
 
-      // 2. ฟังก์ชันเรนเดอร์ กรอบที่ 1 (Leaderboard)
+      // 1. ฟังก์ชัน Render กรอบ Leaderboard (กรอบบน)
       function renderLeaderboardTable(type) {
         const tbody = document.getElementById('lb-tbody');
         if (!tbody) return;
@@ -289,14 +281,14 @@
           const score = (p.total_score !== undefined) ? p.total_score : 0;
           const scoreColor = score < 0 ? '#ff5252' : '#fce0a2';
           
-          // ✨ แก้รูปที่ 2: ดึง code_name จาก Google Sheet มาโชว์ก่อนเพื่อน
-          const displayName = p.code_name || p.player_name || p.name || p.player_id;
+          const charId = p.character_id || p.player_id || '-';
+          const codeName = p.code_name || charId;
 
           tbody.innerHTML += `
             <tr>
               <td style="text-align: center;">${rankBadge}</td>
-              <td><code class="code-tag">${p.player_id}</code></td>
-              <td style="color: #f3e8d3; font-weight: 500;">${displayName}</td>
+              <td><code class="code-tag">${charId}</code></td>
+              <td style="color: #f3e8d3; font-weight: 500;">${codeName}</td>
               <td style="text-align: right; font-weight: bold; color: ${scoreColor};">${score.toLocaleString()}</td>
             </tr>
           `;
@@ -309,7 +301,7 @@
         renderLeaderboardTable(type);
       }
 
-      // 3. ฟังก์ชันเรนเดอร์ กรอบที่ 2 (ผู้เล่นทั้งหมดแยกตามสายงาน)
+      // 2. ฟังก์ชัน Render กรอบรายชื่อผู้เล่นทุกคน (กรอบล่าง)
       function renderGroupTable(groupName) {
         const tbody = document.getElementById('group-tbody');
         if (!tbody) return;
@@ -323,18 +315,15 @@
         }
 
         players.forEach((p, idx) => {
-          // ✨ แก้รูปที่ 2: ดึง code_name จาก Google Sheet มาโชว์ก่อนเพื่อน
-          const displayName = p.code_name || p.player_name || p.name || p.player_id;
+          const charId = p.character_id || p.player_id || '-';
+          const codeName = p.code_name || p.Code_name || charId;
           const score = (p.total_score !== undefined) ? p.total_score : (p.score || 0);
 
           tbody.innerHTML += `
             <tr>
               <td style="text-align: center; color: #8c6e51;">${idx + 1}</td>
-              <td>
-                <strong style="color: #f3e8d3; display: block;">${displayName}</strong>
-                <code class="code-tag" style="font-size: 0.75rem;">${p.player_id}</code>
-              </td>
-              <td style="text-align: center; color: #ffd700;">3/3</td>
+              <td><code class="code-tag">${charId}</code></td>
+              <td style="color: #f3e8d3; font-weight: 500;">${codeName}</td>
               <td style="text-align: right; font-weight: bold; color: #fce0a2;">${score.toLocaleString()}</td>
             </tr>
           `;
@@ -347,10 +336,10 @@
         renderGroupTable(groupName);
       }
 
-      // เริ่มต้นเรนเดอร์ทั้ง 2 ตาราง
+      // เริ่มทำงานเมื่อโหลดหน้าเว็บ
       document.addEventListener("DOMContentLoaded", function() {
         renderLeaderboardTable('ALL');
-        
+
         const firstGroup = Object.keys(globalGroupedPlayers)[0];
         if (firstGroup) {
           renderGroupTable(firstGroup);
