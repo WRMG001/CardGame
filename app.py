@@ -514,12 +514,14 @@ def get_leaderboards_by_role():
             
         p_id = str(p.get('player_id', '') if isinstance(p, dict) else getattr(p, 'player_id', '')).strip().upper()
         
-        # กรอง Admin ออกจาก Leaderboard
         if p_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
         score_val = p.get('total_score', 0) if isinstance(p, dict) else getattr(p, 'total_score', 0)
         p_role = str(p.get('role', '') if isinstance(p, dict) else getattr(p, 'role', '')).strip()
+        
+        # 📌 ดึงค่า code_name จาก Sheet มาเก็บไว้
+        c_name = p.get('code_name') or p.get('player_name') or p_id if isinstance(p, dict) else getattr(p, 'code_name', p_id)
 
         try:
             score_int = int(score_val)
@@ -528,13 +530,17 @@ def get_leaderboards_by_role():
 
         p_dict = {
             'player_id': p_id,
-            'player_name': p.get('player_name', p_id) if isinstance(p, dict) else getattr(p, 'player_name', p_id),
+            'code_name': c_name,
+            'player_name': c_name,
             'role': p_role,
             'total_score': score_int
         }
         valid_players.append(p_dict)
 
-    # 1. จัดกลุ่ม Top 10 ของแต่ละ Role
+    # 1. Top 10 รวมทั้งหมด
+    overall_top10 = sorted(valid_players, key=lambda x: x['total_score'], reverse=True)[:10]
+
+    # 2. Top 10 แต่ละ Role
     for code, full_name in role_names.items():
         role_players = [
             p for p in valid_players 
@@ -543,11 +549,12 @@ def get_leaderboards_by_role():
         sorted_role = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
         role_leaderboards[code] = sorted_role
 
-    # 2. Top 10 แต้มน้อยที่สุด (ดวงกุด)
+    # 3. Top 10 ดวงกุด
     worst_top10 = sorted(valid_players, key=lambda x: x['total_score'])[:10]
 
     return {
         "role_names": role_names,
+        "overall_top10": overall_top10,
         "roles": role_leaderboards,
         "worst_top10": worst_top10
     }
