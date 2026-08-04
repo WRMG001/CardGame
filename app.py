@@ -512,46 +512,53 @@ def get_leaderboards_by_role():
         if not p:
             continue
 
-        # Helper สำหรับดึงค่าจาก Dict หรือ Object
-        def get_val(key_list, default=''):
-            if isinstance(p, dict):
-                for k in key_list:
-                    if k in p and p[k] is not None and str(p[k]).strip() != '':
-                        return p[k]
-            else:
-                for k in key_list:
-                    if hasattr(p, k) and getattr(p, k) is not None and str(getattr(p, k)).strip() != '':
-                        return getattr(p, k)
+        # สร้าง Dict ใหม่ที่เปรียบเทียบ Key แบบ case-insensitive และลบ space ส่วนเกิน
+        clean_p = {}
+        if isinstance(p, dict):
+            clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.items()}
+        elif hasattr(p, '__dict__'):
+            clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.__dict__.items()}
+
+        def get_val_smart(target_keys, default=''):
+            for tk in target_keys:
+                clean_tk = tk.strip().lower().replace(" ", "_")
+                if clean_tk in clean_p and clean_p[clean_tk] is not None:
+                    val = str(clean_p[clean_tk]).strip()
+                    if val != '':
+                        return clean_p[clean_tk]
             return default
 
         # 1. ดึง "รหัสตัวละคร" (เช่น P001, C011)
-        char_id = str(get_val(['รหัสตัวละคร', 'character_id', 'player_id'], '')).strip().upper()
+        char_id = str(get_val_smart(['รหัสตัวละคร', 'character_id', 'player_id', 'id'], '')).strip().upper()
 
         if not char_id or char_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # 2. ดึง "Code name" (ตรงกับ คอลัมน์ C ในรูปที่ 3 เช่น Keith, Heinrich, Ludi, Winston)
-        # ใส่ตัวเลือกชื่อคอลัมน์แบบต่างๆ กันเหนียว
-        code_name = str(get_val(['Code name', 'Code Name', 'code_name', 'Codename', 'codename'], char_id)).strip()
+        # 2. ดึง "Code name" (ค้นหารองรับทั้ง code_name, codename, code name, ชื่อ, name)
+        code_name = str(get_val_smart(['code_name', 'codename', 'code name', 'name', 'ชื่อ'], '')).strip()
+        
+        # หากยังหาไม่เจอจริงๆ ให้ใช้ char_id เป็นตัวสำรอง
+        if not code_name:
+            code_name = char_id
 
         # 3. ดึง "คะแนน" (Total Score)
-        score_val = get_val(['Total Score', 'total_score', 'Score', 'คะแนน'], 0)
+        score_val = get_val_smart(['total_score', 'score', 'คะแนน', 'total score'], 0)
         try:
             score_int = int(score_val)
         except (ValueError, TypeError):
             score_int = 0
 
         # 4. แยก สายงาน (Role)
-        p_role = str(get_val(['Role', 'role', 'สายงาน'], '')).strip().upper()
+        p_role = str(get_val_smart(['role', 'สายงาน'], '')).strip().upper()
         if not p_role:
             import re
             match = re.match(r"^([A-Z]+)", char_id)
             p_role = match.group(1) if match else ''
 
         p_dict = {
-            'character_id': char_id,  # แสดงในช่อง "รหัสตัวละคร" (เช่น P001)
+            'character_id': char_id,  # รหัสตัวละคร (P001)
             'player_id': char_id,
-            'code_name': code_name,    # แสดงในช่อง "Code name" (เช่น Keith)
+            'code_name': code_name,   # Code name (Keith, Heinrich, Ludi)
             'player_name': code_name,
             'role': p_role,
             'total_score': score_int
