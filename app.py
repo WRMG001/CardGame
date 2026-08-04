@@ -42,14 +42,25 @@ def login():
     return render_template("login.html")
 
 
+# -------------------------------------------------------------
+# 🚪 LOGOUT ROUTE (เพิ่มเพื่อแก้ปัญหา 404 Not Found)
+# -------------------------------------------------------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    try:
+        logout_player()
+    except Exception as e:
+        print(f"⚠️ Error during logout: {e}")
+    return redirect("/login")
+
+
 @app.route("/home")
 def home():
     if "player_id" not in session:
         return redirect("/login")
 
     player_id = session.get("player_id")
-    
-    # 🔍 แก้ไขเป็น get_player_data ตามที่มีการ import ไว้
     player = get_player_data(player_id) or {}
 
     total_score = player.get("total_score", 0)
@@ -61,8 +72,8 @@ def home():
         player_name=session.get("player_name", "ผู้เล่น"),
         role=session.get("role"),
         event_luck=EVENT_LUCK,
-        total_score=total_score,           # 👈 ส่งคะแนนรวมสะสมจริงไปที่ HTML
-        free_plays_used=free_plays_used    # 👈 ส่งสิทธิ์เปิดไพ่ที่ใช้ไปแล้วจริงไปที่ HTML
+        total_score=total_score,
+        free_plays_used=free_plays_used
     )
 
 
@@ -239,7 +250,7 @@ def api_play():
 
 
 # -------------------------------------------------------------
-# 📊 ROUTE / RANKING (ปรับปรุงแก้ไขป้องกัน 500 Error & หน้าขาว)
+# 📊 ROUTE / RANKING (แก้ปัญหาหน้าขาวด้วยการส่ง leaderboard_data)
 # -------------------------------------------------------------
 @app.route("/ranking")
 def ranking():
@@ -247,7 +258,6 @@ def ranking():
         return redirect("/login")
 
     try:
-        # ดึงข้อมูล Top 10 ปกติ
         top_10_players = get_leaderboard(limit=15) or []
     except Exception as e:
         print(f"⚠️ Error get_leaderboard: {e}")
@@ -259,7 +269,7 @@ def ranking():
         print(f"⚠️ Error fetching all players: {e}")
         all_players = top_10_players
 
-    # กรอง Admin ออก ป้องกัน Error กรณี p เป็น None
+    # กรอง Admin ออก
     filtered_all_players = []
     for p in all_players:
         if not p:
@@ -270,7 +280,7 @@ def ranking():
 
     filtered_top_players = filtered_all_players[:10]
 
-    # จัดกลุ่มตาม Sheet Name (เผื่อ ranking.html เวอร์ชันเก่าใช้)
+    # จัดกลุ่มตาม Sheet Name
     grouped_players = {}
     for p in filtered_all_players:
         sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
@@ -281,7 +291,7 @@ def ranking():
             grouped_players[sheet_name] = []
         grouped_players[sheet_name].append(p)
 
-    # ดึงข้อมูลแบบแยก Role & ดวงกุด เตรียมไว้ให้ JavaScript สรุปผล
+    # ดึงข้อมูลแยกตาม Role & ดวงกุด
     leaderboard_roles_data = {}
     try:
         leaderboard_roles_data = get_leaderboards_by_role()
@@ -294,7 +304,7 @@ def ranking():
         player_name=session.get("player_name"),
         top_players=filtered_top_players,
         grouped_players=grouped_players,
-        leaderboard_data=leaderboard_roles_data  # 👈 ส่งข้อมูล Role & ดวงกุด เผื่อให้ ranking.html ดึงไปใช้
+        leaderboard_data=leaderboard_roles_data
     )
 
 
@@ -324,7 +334,7 @@ def history():
 
 
 # -------------------------------------------------------------
-# 3. Admin Dashboard (ปรับปรุงป้องกัน 500 Error)
+# 3. Admin Dashboard
 # -------------------------------------------------------------
 @app.route("/admin", methods=["GET", "POST"])
 def admin_dashboard():
@@ -423,7 +433,6 @@ def admin_dashboard():
             except Exception as e:
                 msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ตทั้งหมด: {str(e)}"
 
-    # Render Template แบบรองรับทั้งสองชื่อไฟล์
     try:
         return render_template(
             "admin.html",
@@ -442,11 +451,10 @@ def admin_dashboard():
         )
 
 # -------------------------------------------------------------
-# 📊 ROUTE / API สำหรับ LEADERBOARD (แยก ตาม Role & ดวงกุด)
+# 📊 ROUTE / API สำหรับ LEADERBOARD
 # -------------------------------------------------------------
 @app.route("/api/leaderboard/roles")
 def api_leaderboard_roles():
-    """API คืนค่าข้อมูล Leaderboard แยกตาม Role และ Top 10 ดวงกุดแบบ JSON"""
     if "player_id" not in session:
         return jsonify({"success": False, "message": "Unauthorized"}), 401
     
@@ -459,7 +467,6 @@ def api_leaderboard_roles():
 
 @app.route("/leaderboard-roles")
 def leaderboard_roles_page():
-    """หน้าเว็บแสดง Leaderboard แยกตาม Role"""
     if "player_id" not in session:
         return redirect("/login")
         
@@ -478,16 +485,14 @@ def leaderboard_roles_page():
 # ==========================================
 
 def get_all_players_data():
-    """ดึงข้อมูลผู้เล่นทั้งหมดจาก Google Sheets"""
     try:
-        players = get_all_players() # 👈 เชื่อมใช้ฟังก์ชันเดิมใน sheets_service
+        players = get_all_players()
         return players if players else []
     except Exception as e:
         print(f"⚠️ Error fetching all players: {e}")
         return []
 
 def get_leaderboards_by_role():
-    """จัดกลุ่ม Top 10 ตาม Role และ Top 10 ดวงกุด (คะแนนติดลบมากที่สุด)"""
     all_players = get_all_players_data()
     
     role_names = {
@@ -504,10 +509,17 @@ def get_leaderboards_by_role():
     valid_players = []
 
     for p in all_players:
-        # ดึงคะแนนแบบรองรับทั้ง dict และ object
+        if not p:
+            continue
+            
+        p_id = str(p.get('player_id', '') if isinstance(p, dict) else getattr(p, 'player_id', '')).strip().upper()
+        
+        # กรอง Admin ออกจาก Leaderboard
+        if p_id in [aid.upper() for aid in ADMIN_IDS]:
+            continue
+
         score_val = p.get('total_score', 0) if isinstance(p, dict) else getattr(p, 'total_score', 0)
-        p_id = p.get('player_id', '') if isinstance(p, dict) else getattr(p, 'player_id', '')
-        p_role = p.get('role', '') if isinstance(p, dict) else getattr(p, 'role', '')
+        p_role = str(p.get('role', '') if isinstance(p, dict) else getattr(p, 'role', '')).strip()
 
         try:
             score_int = int(score_val)
@@ -523,10 +535,10 @@ def get_leaderboards_by_role():
         valid_players.append(p_dict)
 
     # 1. จัดกลุ่ม Top 10 ของแต่ละ Role
-    for code in role_names.keys():
+    for code, full_name in role_names.items():
         role_players = [
             p for p in valid_players 
-            if str(p.get('role', '')).upper() == code or str(p.get('player_id', '')).upper().startswith(code)
+            if p.get('role', '').upper() in [code.upper(), full_name.upper()] or p.get('player_id', '').upper().startswith(code.upper())
         ]
         sorted_role = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
         role_leaderboards[code] = sorted_role
