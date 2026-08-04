@@ -492,6 +492,9 @@ def get_all_players_data():
         print(f"⚠️ Error fetching all players: {e}")
         return []
 
+import re
+
+# 1. ฟังก์ชันเตรียมข้อมูลสำหรับ Leaderboard (กรอบบน)
 def get_leaderboards_by_role():
     all_players = get_all_players_data()
     
@@ -512,14 +515,13 @@ def get_leaderboards_by_role():
         if not p:
             continue
 
-        # สร้าง Dict ใหม่ที่เปรียบเทียบ Key แบบ case-insensitive และลบ space ส่วนเกิน
         clean_p = {}
         if isinstance(p, dict):
             clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.items()}
         elif hasattr(p, '__dict__'):
             clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.__dict__.items()}
 
-        def get_val_smart(target_keys, default=''):
+        def get_val(target_keys, default=''):
             for tk in target_keys:
                 clean_tk = tk.strip().lower().replace(" ", "_")
                 if clean_tk in clean_p and clean_p[clean_tk] is not None:
@@ -528,47 +530,38 @@ def get_leaderboards_by_role():
                         return clean_p[clean_tk]
             return default
 
-        # 1. ดึง "รหัสตัวละคร" (เช่น P001, C011)
-        char_id = str(get_val_smart(['รหัสตัวละคร', 'character_id', 'player_id', 'id'], '')).strip().upper()
+        char_id = str(get_val(['รหัสตัวละคร', 'character_id', 'player_id', 'id'], '')).strip().upper()
 
         if not char_id or char_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # 2. ดึง "Code name" (ค้นหารองรับทั้ง code_name, codename, code name, ชื่อ, name)
-        code_name = str(get_val_smart(['code_name', 'codename', 'code name', 'name', 'ชื่อ'], '')).strip()
-        
-        # หากยังหาไม่เจอจริงๆ ให้ใช้ char_id เป็นตัวสำรอง
+        code_name = str(get_val(['code_name', 'codename', 'code name', 'name', 'ชื่อ'], '')).strip()
         if not code_name:
             code_name = char_id
 
-        # 3. ดึง "คะแนน" (Total Score)
-        score_val = get_val_smart(['total_score', 'score', 'คะแนน', 'total score'], 0)
+        score_val = get_val(['total_score', 'score', 'คะแนน', 'total score'], 0)
         try:
             score_int = int(score_val)
         except (ValueError, TypeError):
             score_int = 0
 
-        # 4. แยก สายงาน (Role)
-        p_role = str(get_val_smart(['role', 'สายงาน'], '')).strip().upper()
+        p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
         if not p_role:
-            import re
             match = re.match(r"^([A-Z]+)", char_id)
             p_role = match.group(1) if match else ''
 
         p_dict = {
-            'character_id': char_id,  # รหัสตัวละคร (P001)
+            'character_id': char_id,
             'player_id': char_id,
-            'code_name': code_name,   # Code name (Keith, Heinrich, Ludi)
+            'code_name': code_name,
             'player_name': code_name,
             'role': p_role,
             'total_score': score_int
         }
         valid_players.append(p_dict)
 
-    # จัดอันดับ Top 10 รวม
     overall_top10 = sorted(valid_players, key=lambda x: x['total_score'], reverse=True)[:10]
 
-    # จัดอันดับ Top 10 แยกสายงาน
     for code, full_name in role_names.items():
         role_players = [
             p for p in valid_players 
@@ -576,7 +569,6 @@ def get_leaderboards_by_role():
         ]
         role_leaderboards[code] = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
 
-    # จัดอันดับ ดวงกุด
     worst_top10 = sorted(valid_players, key=lambda x: x['total_score'])[:10]
 
     return {
@@ -586,5 +578,75 @@ def get_leaderboards_by_role():
         "worst_top10": worst_top10
     }
 
+
+# 2. ฟังก์ชันเตรียมข้อมูล grouped_players (กรอบล่าง)
+def get_grouped_players():
+    all_players = get_all_players_data()
+    
+    role_names = {
+        'C': 'Customer',
+        'P': 'Partner',
+        'H': 'Host',
+        'BL': 'Black',
+        'BA': 'Bartender',
+        'W': 'Waiter',
+        'G': 'Guard'
+    }
+    
+    grouped = {full_name: [] for full_name in role_names.values()}
+    
+    for p in all_players:
+        if not p:
+            continue
+
+        clean_p = {}
+        if isinstance(p, dict):
+            clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.items()}
+        elif hasattr(p, '__dict__'):
+            clean_p = {str(k).strip().lower().replace(" ", "_"): v for k, v in p.__dict__.items()}
+
+        def get_val(target_keys, default=''):
+            for tk in target_keys:
+                clean_tk = tk.strip().lower().replace(" ", "_")
+                if clean_tk in clean_p and clean_p[clean_tk] is not None:
+                    val = str(clean_p[clean_tk]).strip()
+                    if val != '':
+                        return clean_p[clean_tk]
+            return default
+
+        char_id = str(get_val(['รหัสตัวละคร', 'character_id', 'player_id', 'id'], '')).strip().upper()
+        if not char_id or char_id in [aid.upper() for aid in ADMIN_IDS]:
+            continue
+
+        code_name = str(get_val(['code_name', 'codename', 'code name', 'name', 'ชื่อ'], '')).strip()
+        if not code_name:
+            code_name = char_id
+
+        score_val = get_val(['total_score', 'score', 'คะแนน', 'total score'], 0)
+        try:
+            score_int = int(score_val)
+        except (ValueError, TypeError):
+            score_int = 0
+
+        p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
+        if not p_role:
+            match = re.match(r"^([A-Z]+)", char_id)
+            p_role = match.group(1) if match else ''
+
+        player_dict = {
+            'character_id': char_id,
+            'player_id': char_id,
+            'code_name': code_name,
+            'total_score': score_int,
+            'role': p_role
+        }
+
+        role_full_name = role_names.get(p_role, 'อื่นๆ')
+        if role_full_name in grouped:
+            grouped[role_full_name].append(player_dict)
+        else:
+            grouped.setdefault(role_full_name, []).append(player_dict)
+
+    return grouped
 if __name__ == "__main__":
     app.run(debug=True)
