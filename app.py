@@ -49,9 +49,8 @@ def home():
 
     player_id = session.get("player_id")
     
-    # 🔍 ดึงข้อมูลผู้เล่นปัจจุบันเพื่อเอาคะแนนและสิทธิ์ที่เล่นไปแล้วจริง
-    # (เปลี่ยนชื่อฟังก์ชัน get_player_by_id ให้ตรงกับที่คุณใช้ในโปรเจกต์ เช่น get_player_data)
-    player = get_player_by_id(player_id) or {}
+    # 🔍 แก้ไขเป็น get_player_data ตามที่มีการ import ไว้
+    player = get_player_data(player_id) or {}
 
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
@@ -62,8 +61,8 @@ def home():
         player_name=session.get("player_name", "ผู้เล่น"),
         role=session.get("role"),
         event_luck=EVENT_LUCK,
-        total_score=total_score,           # 👈 ส่งคะแนนรวมไป
-        free_plays_used=free_plays_used    # 👈 ส่งสิทธิ์ที่ใช้ไปแล้วไป
+        total_score=total_score,           # 👈 ส่งคะแนนรวมสะสมจริงไปที่ HTML
+        free_plays_used=free_plays_used    # 👈 ส่งสิทธิ์เปิดไพ่ที่ใช้ไปแล้วจริงไปที่ HTML
     )
 
 
