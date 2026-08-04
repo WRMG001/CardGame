@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}หน้าหลัก - Black Vegas {% endblock %}
+{% block title %}หน้าหลัก - Black Vegas{% endblock %}
 
 {% block content %}
 <div style="max-width: 500px; margin: 40px auto 80px auto; color: #f3e8d3; font-family: 'Kanit', sans-serif; padding: 0 15px;">
@@ -11,7 +11,7 @@
       BLACK VEGAS
     </h1>
     <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
-      xxxxx
+      ---
     </div>
   </div>
 
@@ -24,7 +24,7 @@
       <div>
         <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
         <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
-          {{ session.get('player_name') or session.get('name') or 'ผู้เล่น' }}
+          {{ player.code_name or player.player_name or player.name or session.get('player_name') or 'ผู้เล่น' }}
         </h2>
       </div>
       <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
@@ -33,19 +33,31 @@
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
-      <!-- Stat 1: Score -->
+      <!-- Stat 1: Score (เช็กทั้งแบบ Dict และ Object) -->
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
-        <span style="font-size: 20px; font-weight: bold; color: #fce0a2; margin-top: 4px; display: block;">
-          {{ user_score if user_score is defined and user_score is not none else 0 }}
+        <span style="font-size: 20px; font-weight: bold; color: {% if (player.total_score if player is defined and player.total_score is defined else user_score|default(0)) < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
+          {% if player is defined and player.total_score is defined %}
+            {{ player.total_score }}
+          {% elif player is mapping and 'total_score' in player %}
+            {{ player['total_score'] }}
+          {% else %}
+            {{ user_score|default(0) }}
+          {% endif %}
         </span>
       </div>
 
-      <!-- Stat 2: Free Plays -->
+      <!-- Stat 2: Free Plays (สิทธิ์ที่เล่นไปแล้วจริง / 3) -->
       <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
         <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
         <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
-          {{ free_plays_used if free_plays_used is defined and free_plays_used is not none else 0 }}/3
+          {% if player is defined and player.free_plays_used is defined %}
+            {{ player.free_plays_used }}/3
+          {% elif player is mapping and 'free_plays_used' in player %}
+            {{ player['free_plays_used'] }}/3
+          {% else %}
+            {{ free_plays_used|default(0) }}/3
+          {% endif %}
         </span>
       </div>
     </div>
