@@ -47,19 +47,24 @@ def home():
     if "player_id" not in session:
         return redirect("/login")
 
+    player_id = session.get("player_id")
+    
+    # 🔍 ดึงข้อมูลผู้เล่นปัจจุบันเพื่อเอาคะแนนและสิทธิ์ที่เล่นไปแล้วจริง
+    # (เปลี่ยนชื่อฟังก์ชัน get_player_by_id ให้ตรงกับที่คุณใช้ในโปรเจกต์ เช่น get_player_data)
+    player = get_player_by_id(player_id) or {}
+
+    total_score = player.get("total_score", 0)
+    free_plays_used = player.get("free_plays_used", 0)
+
     return render_template(
         "home.html",
-        player_id=session.get("player_id"),
+        player_id=player_id,
         player_name=session.get("player_name", "ผู้เล่น"),
         role=session.get("role"),
-        event_luck=EVENT_LUCK
+        event_luck=EVENT_LUCK,
+        total_score=total_score,           # 👈 ส่งคะแนนรวมไป
+        free_plays_used=free_plays_used    # 👈 ส่งสิทธิ์ที่ใช้ไปแล้วไป
     )
-
-
-@app.route("/logout")
-def logout():
-    logout_player()
-    return redirect("/")
 
 
 # -------------------------------------------------------------
