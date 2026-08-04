@@ -1,3 +1,5 @@
+<!-- 🎯 ต้องมีแท็ก <script> ปิดหัวปิดท้ายแบบนี้ครับ -->
+<script>
 function renderLeaderboardTable(type) {
   const tbody = document.getElementById('lb-tbody');
   const loading = document.getElementById('lb-loading');
@@ -22,7 +24,7 @@ function renderLeaderboardTable(type) {
 
       const scoreColor = p.total_score < 0 ? '#ff5252' : '#fce0a2';
       
-      // 🎯 ดึงชื่อ Code Name หรือ Fallback ชื่ออื่น ๆ
+      // ดึงชื่อ Code Name หรือ Fallback ชื่ออื่น ๆ
       const displayName = p.code_name || p.player_name || p.name || 'ผู้เล่น';
 
       tbody.innerHTML += `
@@ -39,3 +41,4 @@ function renderLeaderboardTable(type) {
   if(loading) loading.style.display = 'none';
   if(container) container.style.display = 'block';
 }
+</script>
