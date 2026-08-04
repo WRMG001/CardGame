@@ -238,29 +238,39 @@ def api_play():
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
 
 
+# -------------------------------------------------------------
+# 📊 ROUTE / RANKING (ปรับปรุงแก้ไขป้องกัน 500 Error & หน้าขาว)
+# -------------------------------------------------------------
 @app.route("/ranking")
 def ranking():
     if "player_id" not in session:
         return redirect("/login")
 
-    top_10_players = get_leaderboard(limit=15)
-    
     try:
-        all_players = get_all_players()
+        # ดึงข้อมูล Top 10 ปกติ
+        top_10_players = get_leaderboard(limit=15) or []
     except Exception as e:
-        print(f"Error fetching all players: {e}")
+        print(f"⚠️ Error get_leaderboard: {e}")
+        top_10_players = []
+
+    try:
+        all_players = get_all_players() or []
+    except Exception as e:
+        print(f"⚠️ Error fetching all players: {e}")
         all_players = top_10_players
 
-    filtered_all_players = [
-        p for p in all_players 
-        if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
-    ]
+    # กรอง Admin ออก ป้องกัน Error กรณี p เป็น None
+    filtered_all_players = []
+    for p in all_players:
+        if not p:
+            continue
+        p_id = str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper()
+        if p_id not in [aid.upper() for aid in ADMIN_IDS]:
+            filtered_all_players.append(p)
 
-    filtered_top_players = [
-        p for p in top_10_players 
-        if str(p.get("player_id", "") if isinstance(p, dict) else getattr(p, "player_id", "")).strip().upper() not in [aid.upper() for aid in ADMIN_IDS]
-    ][:10]
+    filtered_top_players = filtered_all_players[:10]
 
+    # จัดกลุ่มตาม Sheet Name (เผื่อ ranking.html เวอร์ชันเก่าใช้)
     grouped_players = {}
     for p in filtered_all_players:
         sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
@@ -271,12 +281,20 @@ def ranking():
             grouped_players[sheet_name] = []
         grouped_players[sheet_name].append(p)
 
+    # ดึงข้อมูลแบบแยก Role & ดวงกุด เตรียมไว้ให้ JavaScript สรุปผล
+    leaderboard_roles_data = {}
+    try:
+        leaderboard_roles_data = get_leaderboards_by_role()
+    except Exception as e:
+        print(f"⚠️ Error get_leaderboards_by_role: {e}")
+
     return render_template(
         "ranking.html",
         player_id=session.get("player_id"),
         player_name=session.get("player_name"),
         top_players=filtered_top_players,
-        grouped_players=grouped_players
+        grouped_players=grouped_players,
+        leaderboard_data=leaderboard_roles_data  # 👈 ส่งข้อมูล Role & ดวงกุด เผื่อให้ ranking.html ดึงไปใช้
     )
 
 
