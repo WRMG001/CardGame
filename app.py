@@ -512,60 +512,67 @@ def get_leaderboards_by_role():
         if not p:
             continue
 
-        # 📌 Helper Function ดึงค่าได้ทั้งแบบ dict และ object
+        # Helper สำหรับดึงค่าไม่ว่าจะดึงได้เป็น Dict หรือ Object
         def get_val(key_list, default=''):
             if isinstance(p, dict):
                 for k in key_list:
-                    if k in p and p[k] is not None:
+                    if k in p and p[k] is not None and str(p[k]).strip() != '':
                         return p[k]
             else:
                 for k in key_list:
-                    if hasattr(p, k) and getattr(p, k) is not None:
+                    if hasattr(p, k) and getattr(p, k) is not None and str(getattr(p, k)).strip() != '':
                         return getattr(p, k)
             return default
 
-        # 1. ดึงค่า "รหัสตัวละคร"
+        # 📌 1. ดึง "รหัสตัวละคร" (คอลัมน์ B)
         char_id = str(get_val(['รหัสตัวละคร', 'character_id', 'player_id'], '')).strip().upper()
 
-        # กรอง Admin ออกจาก Leaderboard
+        # ข้ามถ้าไม่มีรหัส หรือเป็น Admin
         if not char_id or char_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # 2. ดึงค่า "Code name"
-        code_name = str(get_val(['Code name', 'code_name', 'Code Name', 'ชื่อผู้เล่น'], char_id)).strip()
+        # 📌 2. ดึง "Code name" (คอลัมน์ C ใน รูป)
+        # ถ้าไม่มี Code name ให้ใช้ char_id แทน
+        code_name = str(get_val(['Code name', 'code_name', 'Code Name'], char_id)).strip()
 
-        # 3. ดึงค่า "คะแนน"
-        score_val = get_val(['คะแนน', 'total_score', 'score'], 0)
+        # 📌 3. ดึง "Total Score" (คอลัมน์ E ใน รูป)
+        score_val = get_val(['Total Score', 'total_score', 'Score', 'คะแนน'], 0)
         try:
             score_int = int(score_val)
         except (ValueError, TypeError):
             score_int = 0
 
-        # 4. ดึงค่า "สายงาน"
-        p_role = str(get_val(['สายงาน', 'role'], '')).strip()
+        # 📌 4. ระบุสายงาน (Role) จากตัวอักษรนำหน้าของรหัสตัวละคร (เช่น C011 -> C, P001 -> P)
+        # หรือดึงจากคอลัมน์ Role ถ้ามี
+        p_role = str(get_val(['Role', 'role', 'สายงาน'], '')).strip().upper()
+        if not p_role:
+            # สกัดอักษรนำหน้า เช่น C011 ได้ 'C', BL028 ได้ 'BL', BA024 ได้ 'BA'
+            import re
+            match = re.match(r"^([A-Z]+)", char_id)
+            p_role = match.group(1) if match else ''
 
         p_dict = {
-            'character_id': char_id,  # ส่งไปใช้ในตารางช่อง "รหัสตัวละคร"
-            'player_id': char_id,     # กัน fallback
-            'code_name': code_name,    # ส่งไปใช้ในตารางช่อง "Code name"
+            'character_id': char_id,  # ส่งไปแสดงในช่อง "รหัสตัวละคร"
+            'player_id': char_id,
+            'code_name': code_name,    # ส่งไปแสดงในช่อง "Code name" (เช่น Keith, Heinrich, Ludi, Winston)
             'player_name': code_name,
             'role': p_role,
             'total_score': score_int
         }
         valid_players.append(p_dict)
 
-    # 1. Top 10 รวมทั้งหมด (Overall)
+    # 1. จัดอันดับ Top 10 รวมทั้งหมด (เรียงตามคะแนนมากไปน้อย)
     overall_top10 = sorted(valid_players, key=lambda x: x['total_score'], reverse=True)[:10]
 
-    # 2. Top 10 แต่ละ Role
+    # 2. จัดอันดับ Top 10 แต่ละสายงาน (Role)
     for code, full_name in role_names.items():
         role_players = [
             p for p in valid_players 
-            if p['role'].upper() in [code.upper(), full_name.upper()] or p['character_id'].startswith(code.upper())
+            if p['role'] == code or p['character_id'].startswith(code)
         ]
         role_leaderboards[code] = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
 
-    # 3. Top 10 แต้มต่ำสุด (ดวงกุด)
+    # 3. จัดอันดับ Top 10 ดวงกุด (เรียงตามคะแนนน้อยไปมาก)
     worst_top10 = sorted(valid_players, key=lambda x: x['total_score'])[:10]
 
     return {
