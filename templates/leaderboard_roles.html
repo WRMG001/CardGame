@@ -25,7 +25,7 @@
 
         .card-box {
             width: 100%;
-            max-width: 600px;
+            max-width: 650px;
             background: linear-gradient(145deg, #1f0709, #120304);
             border: 2px solid #5c181e;
             border-radius: 16px;
@@ -103,7 +103,7 @@
         }
 
         .scrollable-table {
-            max-height: 320px;
+            max-height: 350px;
             overflow-y: auto;
         }
 
@@ -150,7 +150,7 @@
         .btn-back {
             display: block;
             width: 100%;
-            max-width: 600px;
+            max-width: 650px;
             text-align: center;
             background: #2b0b0e;
             color: #ffd700;
@@ -207,7 +207,7 @@
     </div>
 
 
-    <!-- 👥 กรอบที่ 2: รายชื่อทุกคนแยกสายงาน (กรอบล่าง) -->
+    <!-- 👥 กรอบที่ 2: รายชื่อผู้เล่นทั้งหมดแยกตามสายงาน -->
     <div class="card-box">
         <div class="header">
             <h2>👥 รายชื่อผู้เล่นทั้งหมดแยกตามสายงาน</h2>
@@ -231,9 +231,10 @@
                 <thead>
                     <tr>
                         <th style="width: 10%; text-align: center;">#</th>
-                        <th style="width: 30%;">รหัสตัวละคร</th>
-                        <th style="width: 40%;">Code name</th>
-                        <th style="width: 20%; text-align: right;">คะแนนสะสม</th>
+                        <th style="width: 20%;">รหัสตัวละคร</th>
+                        <th style="width: 35%;">Code name</th>
+                        <th style="width: 20%; text-align: center;">สิทธิการกด</th>
+                        <th style="width: 15%; text-align: right;">คะแนนสะสม</th>
                     </tr>
                 </thead>
                 <tbody id="group-tbody">
@@ -246,12 +247,12 @@
     <a href="/home" class="btn-back">⬅️ กลับหน้าหลัก</a>
 
 
-    <!-- 🎯 SCRIPT รวมทั้ง 2 กรอบ -->
+    <!-- 🎯 SCRIPT -->
     <script>
       const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
       const globalGroupedPlayers = {{ grouped_players | tojson | safe if grouped_players else '{}' }};
 
-      // ฟังก์ชันช่วยดึง Property โดยไม่สนตัวพิมพ์เล็ก-ใหญ่ และเว้นวรรค
+      // ฟังก์ชันช่วยหา Key ใน Object แบบไม่สนใจเรื่องตัวพิมพ์เล็ก-ใหญ่ และเว้นวรรค
       function getProp(obj, keys) {
         if (!obj) return null;
         for (let k of keys) {
@@ -317,7 +318,7 @@
         renderLeaderboardTable(type);
       }
 
-      // 2. Render กรอบล่าง (รายชื่อแยกสายงาน)
+      // 2. Render กรอบล่าง (รายชื่อแยกสายงาน + สิทธิการกด)
       function renderGroupTable(groupName) {
         const tbody = document.getElementById('group-tbody');
         if (!tbody) return;
@@ -326,13 +327,19 @@
         const players = globalGroupedPlayers[groupName] || [];
 
         if (!players || players.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีรายชื่อผู้เล่นในกลุ่มนี้</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีรายชื่อผู้เล่นในกลุ่มนี้</td></tr>`;
           return;
         }
 
         players.forEach((p, idx) => {
           const charId = p.character_id || p.player_id || getProp(p, ['รหัสตัวละคร', 'id']) || '-';
-          const codeName = p.code_name || p.player_name || getProp(p, ['code_name', 'codename', 'code name', 'name', 'ชื่อ']) || charId;
+          const codeName = p.code_name || p.Code_Name || p.player_name || getProp(p, ['code_name', 'codename', 'code name', 'name', 'ชื่อ']) || charId;
+          
+          // สิทธิการกด
+          const rawQuota = p.quota_left ?? p.quota ?? p.plays ?? getProp(p, ['quota_left', 'quota', 'plays', 'สิทธิ์', 'สิทธิการกด', 'สิทธิ']);
+          const quotaDisplay = (rawQuota !== null && rawQuota !== undefined) ? rawQuota : '-';
+
+          // คะแนนสะสม
           const rawScore = (p.total_score !== undefined) ? p.total_score : getProp(p, ['score', 'คะแนน']);
           const score = (rawScore !== null && rawScore !== undefined) ? Number(rawScore) : 0;
 
@@ -341,6 +348,7 @@
               <td style="text-align: center; color: #8c6e51;">${idx + 1}</td>
               <td><code class="code-tag">${charId}</code></td>
               <td style="color: #f3e8d3; font-weight: 500;">${codeName}</td>
+              <td style="text-align: center; color: #4caf50; font-weight: bold;">${quotaDisplay}</td>
               <td style="text-align: right; font-weight: bold; color: #fce0a2;">${score.toLocaleString()}</td>
             </tr>
           `;
