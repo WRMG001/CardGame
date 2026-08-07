@@ -251,6 +251,11 @@
       const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
       const globalGroupedPlayers = {{ grouped_players | tojson | safe if grouped_players else '{}' }};
 
+      // ฟังก์ชันช่วยดึงชื่อ Code Name ครอบคลุมทุกสไตล์การตั้งชื่อ Key
+      function getPlayerCodeName(p, fallbackCharId) {
+        return p.code_name || p.Code_name || p.codename || p.name || p.player_name || p.char_name || fallbackCharId;
+      }
+
       // 1. ฟังก์ชัน Render กรอบ Leaderboard (กรอบบน)
       function renderLeaderboardTable(type) {
         const tbody = document.getElementById('lb-tbody');
@@ -278,11 +283,11 @@
           if (rank === 2) rankBadge = `🥈`;
           if (rank === 3) rankBadge = `🥉`;
 
-          const score = (p.total_score !== undefined) ? p.total_score : 0;
+          const score = (p.total_score !== undefined) ? p.total_score : (p.score || 0);
           const scoreColor = score < 0 ? '#ff5252' : '#fce0a2';
           
-          const charId = p.character_id || p.player_id || '-';
-          const codeName = p.code_name || charId;
+          const charId = p.character_id || p.player_id || p.id || '-';
+          const codeName = getPlayerCodeName(p, charId);
 
           tbody.innerHTML += `
             <tr>
@@ -315,8 +320,8 @@
         }
 
         players.forEach((p, idx) => {
-          const charId = p.character_id || p.player_id || '-';
-          const codeName = p.code_name || p.Code_name || charId;
+          const charId = p.character_id || p.player_id || p.id || '-';
+          const codeName = getPlayerCodeName(p, charId);
           const score = (p.total_score !== undefined) ? p.total_score : (p.score || 0);
 
           tbody.innerHTML += `
