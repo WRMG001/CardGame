@@ -1,82 +1,246 @@
 {% extends 'base.html' %}
 
-{% block title %}หน้าหลัก - Black Vegas {% endblock %}
+{% block title %}หน้าหลัก - Black Vegas{% endblock %}
 
 {% block content %}
-<div style="max-width: 500px; margin: 40px auto 80px auto; color: #f3e8d3; font-family: 'Kanit', sans-serif; padding: 0 15px;">
+<style>
+  .home-wrapper {
+    display: flex;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 30px auto 80px auto;
+    padding: 0 15px;
+    align-items: flex-start;
+    justify-content: center;
+    font-family: 'Kanit', sans-serif;
+    color: #f3e8d3;
+  }
 
-  <!-- Header Banner -->
-  <div style="text-align: center; margin-bottom: 30px;">
-    <h1 style="margin: 0; font-size: 32px; letter-spacing: 3px; font-weight: 700; background: linear-gradient(135deg, #fce0a2, #d4af37, #aa7c11); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-      BLACK VEGAS
-    </h1>
-    <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
-      XXXXX
+  .side-card {
+    flex: 1;
+    min-width: 280px;
+    background: linear-gradient(145deg, #1f080a, #120304);
+    border: 1px solid #5c1d24;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+  }
+
+  .side-card-header {
+    text-align: center;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #3d1216;
+    color: #fce0a2;
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  .center-card {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .daily-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .daily-table th {
+    font-size: 12px;
+    color: #bfa181;
+    padding: 8px 4px;
+    border-bottom: 1px solid #2b0b0e;
+    text-align: left;
+  }
+
+  .daily-table td {
+    font-size: 13px;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .rank-badge {
+    font-weight: bold;
+    color: #ffd700;
+    width: 28px;
+    text-align: center;
+  }
+
+  .combo-tag {
+    background: rgba(212, 175, 55, 0.15);
+    color: #fce0a2;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: inline-block;
+  }
+
+  @media (max-width: 900px) {
+    .home-wrapper {
+      flex-direction: column;
+      align-items: center;
+    }
+    .center-card {
+      order: -1;
+    }
+    .side-card {
+      width: 100%;
+      max-width: 420px;
+    }
+  }
+</style>
+
+<!-- Header Banner -->
+<div style="text-align: center; margin-top: 20px;">
+  <h1 style="margin: 0; font-size: 32px; letter-spacing: 3px; font-weight: 700; background: linear-gradient(135deg, #fce0a2, #d4af37, #aa7c11); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+    BLACK VEGAS
+  </h1>
+  <div style="color: #bfa181; font-size: 14px; letter-spacing: 4px; margin-top: 5px; font-weight: 300;">
+    XXXXX
+  </div>
+</div>
+
+<div class="home-wrapper">
+
+  <!-- 🔴 กรอบที่ 1 (ซ้าย): TOP 10 ผู้เล่นประจำวัน -->
+  <div class="side-card">
+    <div class="side-card-header">
+      🔥 TOP 10 ผู้เล่นวันนี้
     </div>
+    <table class="daily-table">
+      <thead>
+        <tr>
+          <th style="text-align: center;">#</th>
+          <th>ผู้เล่น</th>
+          <th style="text-align: right;">คะแนนวันนี้</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if top10_daily %}
+          {% for item in top10_daily %}
+          <tr>
+            <td class="rank-badge">
+              {% if loop.index == 1 %}🥇
+              {% elif loop.index == 2 %}🥈
+              {% elif loop.index == 3 %}🥉
+              {% else %}{{ loop.index }}
+              {% endif %}
+            </td>
+            <td style="color: #f3e8d3;">{{ item.player_name }}</td>
+            <td style="text-align: right; color: #ffd700; font-weight: bold;">+{{ item.score_today }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="3" style="text-align: center; color: #8c6e51; padding: 20px;">ยังไม่มีการเล่นในวันนี้</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
 
-  <!-- 🎴 Card 1: Player Profile Status -->
-  <div style="background: linear-gradient(145deg, #1f080a, #120304); border-radius: 20px; padding: 25px; border: 1px solid #d4af37; box-shadow: 0 10px 30px rgba(0,0,0,0.7); position: relative; overflow: hidden; margin-bottom: 25px;">
-    <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #d4af37, transparent);"></div>
-
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <div>
-        <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
-        <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
-          {{ player_name }}
-        </h2>
-      </div>
-      <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
-        {{ player_id }}
-      </code>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
-      <!-- Stat 1: คะแนนรวมสะสมจริง -->
-      <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
-        <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
-        <span style="font-size: 20px; font-weight: bold; color: {% if total_score and total_score < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
-          {{ total_score if total_score is not none else 0 }}
-        </span>
-      </div>
-
-      <!-- Stat 2: สิทธิ์เปิดไพ่วันนี้จริง -->
-      <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
-        <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
-        <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
-          {{ free_plays_used if free_plays_used is not none else 0 }}/3
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- 🎯 Card 2: Main Menu Navigation -->
-  <div style="display: flex; flex-direction: column; gap: 14px;">
+  <!-- 🎯 กล่องตรงกลาง: Profile & Menu Navigation -->
+  <div class="center-card">
     
-    <a href="/game" style="text-decoration: none;">
-      <button style="width: 100%; padding: 16px; background: linear-gradient(135deg, #801823, #4a0d14); color: #fff; border: 1.5px solid #a82835; border-radius: 14px; cursor: pointer; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(128, 24, 35, 0.4); display: flex; align-items: center; justify-content: center; gap: 10px;">
-        <span>🃏</span> เข้าสู่เกมเปิดไพ่
-      </button>
-    </a>
+    <!-- Player Profile Status -->
+    <div style="background: linear-gradient(145deg, #1f080a, #120304); border-radius: 20px; padding: 25px; border: 1px solid #d4af37; box-shadow: 0 10px 30px rgba(0,0,0,0.7); position: relative; overflow: hidden; margin-bottom: 20px;">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, #d4af37, transparent);"></div>
 
-    <a href="/ranking" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; background: #1f080a; color: #fce0a2; border: 1px solid #d4af37; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-        <span>🏆</span> ตารางจัดอันดับ & รายชื่อผู้เล่น
-      </button>
-    </a>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <div>
+          <span style="font-size: 12px; color: #bfa181; text-transform: uppercase; letter-spacing: 1px;">WELCOME BACK</span>
+          <h2 style="margin: 2px 0 0 0; color: #fce0a2; font-size: 22px; font-weight: 600;">
+            {{ player_name }}
+          </h2>
+        </div>
+        <code style="color: #ffd700; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 8px; border: 1px solid #5c1d24; font-size: 14px;">
+          {{ player_id }}
+        </code>
+      </div>
 
-    <a href="/history" style="text-decoration: none;">
-      <button style="width: 100%; padding: 14px; background: #1f080a; color: #bfa181; border: 1px solid #4a151b; border-radius: 14px; cursor: pointer; font-weight: 500; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-        <span>📜</span> ประวัติการเปิดไพ่ของฉัน
-      </button>
-    </a>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
+        <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
+          <span style="font-size: 12px; color: #bfa181; display: block;">คะแนนรวมสะสม</span>
+          <span style="font-size: 20px; font-weight: bold; color: {% if total_score and total_score < 0 %}#ff5252{% else %}#fce0a2{% endif %}; margin-top: 4px; display: block;">
+            {{ total_score if total_score is not none else 0 }}
+          </span>
+        </div>
 
-    <div style="text-align: center; margin-top: 15px;">
-      <a href="/logout" style="color: #8c6e51; text-decoration: none; font-size: 13px;">
-        🔒 ออกจากระบบ
-      </a>
+        <div style="background: rgba(43, 11, 14, 0.6); border: 1px solid #4a151b; padding: 12px; border-radius: 12px; text-align: center;">
+          <span style="font-size: 12px; color: #bfa181; display: block;">สิทธิ์เปิดไพ่วันนี้</span>
+          <span style="font-size: 20px; font-weight: bold; color: #ffd700; margin-top: 4px; display: block;">
+            {{ free_plays_used if free_plays_used is not none else 0 }}/3
+          </span>
+        </div>
+      </div>
     </div>
 
+    <!-- Main Menu Navigation -->
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <a href="/game" style="text-decoration: none;">
+        <button style="width: 100%; padding: 16px; background: linear-gradient(135deg, #801823, #4a0d14); color: #fff; border: 1.5px solid #a82835; border-radius: 14px; cursor: pointer; font-weight: bold; font-size: 18px; box-shadow: 0 6px 20px rgba(128, 24, 35, 0.4); display: flex; align-items: center; justify-content: center; gap: 10px;">
+          <span>🃏</span> เข้าสู่เกมเปิดไพ่
+        </button>
+      </a>
+
+      <a href="/ranking" style="text-decoration: none;">
+        <button style="width: 100%; padding: 14px; background: #1f080a; color: #fce0a2; border: 1px solid #d4af37; border-radius: 14px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+          <span>🏆</span> ตารางจัดอันดับ & รายชื่อผู้เล่น
+        </button>
+      </a>
+
+      <a href="/history" style="text-decoration: none;">
+        <button style="width: 100%; padding: 14px; background: #1f080a; color: #bfa181; border: 1px solid #4a151b; border-radius: 14px; cursor: pointer; font-weight: 500; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 10px;">
+          <span>📜</span> ประวัติการเปิดไพ่ของฉัน
+        </button>
+      </a>
+
+      <div style="text-align: center; margin-top: 10px;">
+        <a href="/logout" style="color: #8c6e51; text-decoration: none; font-size: 13px;">
+          🔒 ออกจากระบบ
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 🔴 กรอบที่ 2 (ขวา): TOP 5 คอมโบประจำวัน -->
+  <div class="side-card">
+    <div class="side-card-header">
+      🎰 TOP 5 คอมโบวันนี้
+    </div>
+    <table class="daily-table">
+      <thead>
+        <tr>
+          <th style="text-align: center;">#</th>
+          <th>ผู้เล่น</th>
+          <th style="text-align: right;">คอมโบ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if top5_combos %}
+          {% for item in top5_combos %}
+          <tr>
+            <td class="rank-badge">
+              {% if loop.index == 1 %}🥇
+              {% elif loop.index == 2 %}🥈
+              {% elif loop.index == 3 %}🥉
+              {% else %}{{ loop.index }}
+              {% endif %}
+            </td>
+            <td style="color: #f3e8d3;">{{ item.player_name }}</td>
+            <td style="text-align: right;"><span class="combo-tag">{{ item.combo }}</span></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="3" style="text-align: center; color: #8c6e51; padding: 20px;">ยังไม่มีคอมโบในวันนี้</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
 
 </div>
