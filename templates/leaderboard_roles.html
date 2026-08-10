@@ -179,6 +179,7 @@
 
         <div class="role-tabs">
             <button class="tab-btn active" onclick="switchLbTab('ALL', this)">🌟 รวมทั้งหมด</button>
+            <button class="tab-btn" onclick="switchLbTab('Owner', this)">👑 Owner</button>
             <button class="tab-btn" onclick="switchLbTab('C', this)">Customer</button>
             <button class="tab-btn" onclick="switchLbTab('P', this)">Partner</button>
             <button class="tab-btn" onclick="switchLbTab('H', this)">Host</button>
@@ -252,7 +253,6 @@
       const globalLeaderboardData = {{ leaderboard_data | tojson | safe if leaderboard_data else '{}' }};
       const globalGroupedPlayers = {{ grouped_players | tojson | safe if grouped_players else '{}' }};
 
-      // ฟังก์ชันช่วยหา Key ใน Object แบบไม่สนใจเรื่องตัวพิมพ์เล็ก-ใหญ่ และเว้นวรรค
       function getProp(obj, keys) {
         if (!obj) return null;
         for (let k of keys) {
@@ -335,11 +335,9 @@
           const charId = p.character_id || p.player_id || getProp(p, ['รหัสตัวละคร', 'id']) || '-';
           const codeName = p.code_name || p.Code_Name || p.player_name || getProp(p, ['code_name', 'codename', 'code name', 'name', 'ชื่อ']) || charId;
           
-          // สิทธิการกด
           const rawQuota = p.quota_left ?? p.quota ?? p.plays ?? getProp(p, ['quota_left', 'quota', 'plays', 'สิทธิ์', 'สิทธิการกด', 'สิทธิ']);
           const quotaDisplay = (rawQuota !== null && rawQuota !== undefined) ? rawQuota : '-';
 
-          // คะแนนสะสม
           const rawScore = (p.total_score !== undefined) ? p.total_score : getProp(p, ['score', 'คะแนน']);
           const score = (rawScore !== null && rawScore !== undefined) ? Number(rawScore) : 0;
 
@@ -361,7 +359,6 @@
         renderGroupTable(groupName);
       }
 
-      // ทำงานทันทีเมื่อโหลดหน้าเว็บ
       document.addEventListener("DOMContentLoaded", function() {
         renderLeaderboardTable('ALL');
 
