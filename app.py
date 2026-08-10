@@ -43,7 +43,7 @@ def login():
 
 
 # -------------------------------------------------------------
-# 🚪 LOGOUT ROUTE (เพิ่มเพื่อแก้ปัญหา 404 Not Found)
+# 🚪 LOGOUT ROUTE
 # -------------------------------------------------------------
 @app.route("/logout")
 def logout():
@@ -250,7 +250,7 @@ def api_play():
 
 
 # -------------------------------------------------------------
-# 📊 ROUTE / RANKING (แก้ปัญหาหน้าขาวด้วยการส่ง leaderboard_data)
+# 📊 ROUTE / RANKING
 # -------------------------------------------------------------
 @app.route("/ranking")
 def ranking():
@@ -269,7 +269,6 @@ def ranking():
         print(f"⚠️ Error fetching all players: {e}")
         all_players = top_10_players
 
-    # กรอง Admin ออก
     filtered_all_players = []
     for p in all_players:
         if not p:
@@ -280,7 +279,6 @@ def ranking():
 
     filtered_top_players = filtered_all_players[:10]
 
-    # จัดกลุ่มตาม Sheet Name
     grouped_players = {}
     for p in filtered_all_players:
         sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
@@ -291,7 +289,6 @@ def ranking():
             grouped_players[sheet_name] = []
         grouped_players[sheet_name].append(p)
 
-    # ดึงข้อมูลแยกตาม Role & ดวงกุด
     leaderboard_roles_data = {}
     try:
         leaderboard_roles_data = get_leaderboards_by_role()
@@ -309,7 +306,7 @@ def ranking():
 
 
 # -------------------------------------------------------------
-# หน้าแสดงประวัติการเล่น (ดึงจาก SQLite)
+# หน้าแสดงประวัติการเล่น
 # -------------------------------------------------------------
 @app.route("/history")
 def history():
@@ -471,13 +468,13 @@ def leaderboard_roles_page():
         return redirect("/login")
         
     leaderboard_data = get_leaderboards_by_role()
+    grouped_players = get_grouped_players()
     return render_template(
-        "leaderboard_roles.html",
+        "leaderboard.html",
         player_id=session.get("player_id"),
         player_name=session.get("player_name"),
-        role_names=leaderboard_data["role_names"],
-        roles_data=leaderboard_data["roles"],
-        worst_top10=leaderboard_data["worst_top10"]
+        leaderboard_data=leaderboard_data,
+        grouped_players=grouped_players
     )
 
 # ==========================================
@@ -498,7 +495,9 @@ import re
 def get_leaderboards_by_role():
     all_players = get_all_players_data()
     
+    # เพิ่ม Owner ไว้ในรายการบทบาทหลัก
     role_names = {
+        'Owner': 'Owner',
         'C': 'Customer',
         'P': 'Partner',
         'H': 'Host',
@@ -545,7 +544,7 @@ def get_leaderboards_by_role():
         except (ValueError, TypeError):
             score_int = 0
 
-        p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
+        p_role = str(get_val(['role', 'สายงาน', 'sheet_name'], '')).strip().upper()
         if not p_role:
             match = re.match(r"^([A-Z]+)", char_id)
             p_role = match.group(1) if match else ''
@@ -565,7 +564,7 @@ def get_leaderboards_by_role():
     for code, full_name in role_names.items():
         role_players = [
             p for p in valid_players 
-            if p['role'] == code or p['character_id'].startswith(code)
+            if p['role'] == code.upper() or p['role'] == full_name.upper() or p['character_id'].startswith(code.upper()) or (code == 'Owner' and (p['role'] in ['OWNER', 'O'] or p['character_id'].startswith('OWNER') or p['character_id'].startswith('O')))
         ]
         role_leaderboards[code] = sorted(role_players, key=lambda x: x['total_score'], reverse=True)[:10]
 
@@ -584,6 +583,7 @@ def get_grouped_players():
     all_players = get_all_players_data()
     
     role_names = {
+        'Owner': 'Owner',
         'C': 'Customer',
         'P': 'Partner',
         'H': 'Host',
@@ -628,7 +628,7 @@ def get_grouped_players():
         except (ValueError, TypeError):
             score_int = 0
 
-        p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
+        p_role = str(get_val(['role', 'สายงาน', 'sheet_name'], '')).strip().upper()
         if not p_role:
             match = re.match(r"^([A-Z]+)", char_id)
             p_role = match.group(1) if match else ''
@@ -641,12 +641,19 @@ def get_grouped_players():
             'role': p_role
         }
 
-        role_full_name = role_names.get(p_role, 'อื่นๆ')
+        # แมปเข้ากลุ่ม Owner หรือกลุ่มอื่นตามโค้ดรหัส
+        if p_role in ['OWNER', 'O'] or char_id.startswith('OWNER') or char_id.startswith('O'):
+            role_full_name = 'Owner'
+        else:
+            role_full_name = role_names.get(p_role, 'อื่นๆ')
+
         if role_full_name in grouped:
             grouped[role_full_name].append(player_dict)
         else:
             grouped.setdefault(role_full_name, []).append(player_dict)
 
     return grouped
+
+
 if __name__ == "__main__":
     app.run(debug=True)
