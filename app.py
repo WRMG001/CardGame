@@ -80,6 +80,20 @@ def login():
         print(f"❌ Login Error: {e}")
         return render_template("login.html", error="เกิดข้อผิดพลาดในการเข้าสู่ระบบ")
 
+# -------------------------------------------------------------
+# 🚪 LOGOUT ROUTE
+# -------------------------------------------------------------
+@app.route("/logout")
+def logout():
+    try:
+        logout_player()  # เรียกใช้ฟังก์ชันออกจากระบบจาก modules.auth
+        session.clear()   # ล้างข้อมูล session ทั้งหมดเพื่อความปลอดภัย
+        return redirect("/login") # ส่งผู้เล่นกลับไปยังหน้าล็อกอิน
+    except Exception as e:
+        print(f"❌ Logout Error: {e}")
+        session.clear()
+        return redirect("/login")
+
 
 # -------------------------------------------------------------
 # 🏠 HOME ROUTE
