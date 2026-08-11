@@ -897,6 +897,41 @@ def cron_reset_daily_limits():
     except Exception as e:
         print(f"❌ [Cron Job Error]: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+# ใส่ไว้ใน app.py
+CRON_SECRET_TOKEN = "MyGameReset2026Pass"  # 🔑 ต้องตรงกับ ?token= ใน URL
+
+@app.route("/api/cron/reset-daily-limits", methods=["GET", "POST"])
+def cron_reset_daily_limits():
+    auth_token = request.args.get("token")
+    if auth_token != CRON_SECRET_TOKEN:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    try:
+        all_players = get_all_players() or []
+        count = 0
+        for p in all_players:
+            if not p:
+                continue
+            s_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", None)
+            r_idx = p.get("row_idx") if isinstance(p, dict) else getattr(p, "row_idx", None)
+            t_score = p.get("total_score", 0) if isinstance(p, dict) else getattr(p, "total_score", 0)
+            p_luck = p.get("player_luck", 0.0) if isinstance(p, dict) else getattr(p, "player_luck", 0.0)
+            l_date = p.get("last_play_date", "") if isinstance(p, dict) else getattr(p, "last_play_date", "")
+
+            if s_name and r_idx:
+                updated_data = {
+                    'total_score': t_score,
+                    'player_luck': p_luck,
+                    'last_play_date': l_date,
+                    'free_plays_used': 0
+                }
+                update_player_data(s_name, r_idx, updated_data)
+                count += 1
+
+        return jsonify({"success": True, "message": f"Reset {count} players"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
         
 if __name__ == "__main__":
     app.run(debug=True)
