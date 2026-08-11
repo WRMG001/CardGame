@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, session, url_for, jsonify
-from datetime import datetime
+import os
 import re
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
 from modules.game_service import play_game, get_db
@@ -73,7 +74,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (ปรับปรุงการอ่าน List/Dict และการกรองวันที่)
+# 🏠 HOME ROUTE (ปรับปรุงระบบเช็คเวลา UTC+7 และ Parsing Sheets)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -86,11 +87,14 @@ def home():
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
 
-    # 📊 ดึงวันที่ปัจจุบัน
-    now = datetime.now()
-    today_iso = now.strftime("%Y-%m-%d")          # เช่น "2026-08-11"
-    today_th = now.strftime("%d/%m/%Y")           # เช่น "11/08/2026"
+    # ⏰ 1. กำหนดเวลาปัจจุบันของประเทศไทย (UTC+7)
+    # ป้องกันปัญหา Server นอก (Render/Heroku/Vercel) ช้ากว่าไทย 7 ชม.
+    now_th = datetime.utcnow() + timedelta(hours=7)
     
+    today_iso = now_th.strftime("%Y-%m-%d")                          # เช่น "2026-08-11"
+    today_th = now_th.strftime("%d/%m/%Y")                           # เช่น "11/08/2026"
+    today_th_short = f"{now_th.day}/{now_th.month}/{now_th.year}"    # เช่น "11/8/2026"
+
     try:
         all_history = get_history_from_sheets() or []
     except Exception as e:
@@ -102,64 +106,100 @@ def home():
     daily_combos = []      # รายการคอมโบประจำวัน
 
     for log in all_history:
+        if not log:
+            continue
+
         log_time = ""
         p_id = ""
         combo_name = "High Card"
         score_gained = 0
 
-        # 1. รองรับข้อมูลกรณีเป็น List (เช่น [Timestamp, PlayerID, Cards, Combo, Score, TotalScore])
+        # -------------------------------------------------------
+        # กรณีที่ 1: ข้อมูลเป็น List หรือ Tuple (Row ใน Sheet)
+        # -------------------------------------------------------
         if isinstance(log, (list, tuple)):
             if len(log) < 2:
                 continue
+
+            # ข้ามแถว Header (ถ้าติดมา)
+            col0_str = str(log[0]).strip().lower()
+            if "time" in col0_str or "date" in col0_str or "เวลา" in col0_str or "วันที่" in col0_str:
+                continue
+
             log_time = str(log[0]).strip()
             p_id = str(log[1]).strip().upper()
-            combo_name = str(log[3]).strip() if len(log) > 3 else "High Card"
-            try:
-                score_gained = int(log[4]) if len(log) > 4 else 0
-            except (ValueError, TypeError):
-                score_gained = 0
 
-        # 2. รองรับข้อมูลกรณีเป็น Dict
+            # คอมโบ (อยู่ Col 3 / Index 3)
+            if len(log) > 3 and str(log[3]).strip():
+                combo_name = str(log[3]).strip()
+
+            # คะแนนรอบนี้ (ตรวจสอบ Index 4, 5 หรือ 2)
+            for idx in [4, 5, 2]:
+                if len(log) > idx:
+                    try:
+                        clean_score = str(log[idx]).replace(",", "").strip()
+                        score_gained = int(clean_score)
+                        break
+                    except (ValueError, TypeError):
+                        continue
+
+        # -------------------------------------------------------
+        # กรณีที่ 2: ข้อมูลเป็น Dict
+        # -------------------------------------------------------
         elif isinstance(log, dict):
+            clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
+
             p_id = str(
-                log.get("player_id") or log.get("character_id") or 
-                log.get("รหัสผู้เล่น") or log.get("รหัสตัวละคร") or log.get(1) or ""
+                clean_log.get("player_id") or clean_log.get("character_id") or 
+                clean_log.get("รหัสผู้เล่น") or clean_log.get("รหัสตัวละคร") or ""
             ).strip().upper()
 
             log_time = str(
-                log.get("timestamp") or log.get("created_at") or 
-                log.get("date") or log.get("เวลา") or log.get("วันที่") or log.get(0) or ""
+                clean_log.get("timestamp") or clean_log.get("created_at") or 
+                clean_log.get("date") or clean_log.get("เวลา") or clean_log.get("วันที่") or ""
             ).strip()
 
             combo_name = str(
-                log.get("combo") or log.get("combo_name") or 
-                log.get("คอมโบ") or log.get(3) or "High Card"
+                clean_log.get("combo") or clean_log.get("combo_name") or 
+                clean_log.get("คอมโบ") or "High Card"
             ).strip()
 
             score_val = (
-                log.get("score_gained") or log.get("score") or 
-                log.get("คะแนนที่ได้") or log.get("คะแนน") or log.get(4) or 0
+                clean_log.get("score_gained") or clean_log.get("score") or 
+                clean_log.get("คะแนนที่ได้") or clean_log.get("คะแนน") or 0
             )
             try:
-                score_gained = int(score_val)
+                score_gained = int(str(score_val).replace(",", "").strip())
             except (ValueError, TypeError):
                 score_gained = 0
 
         else:
             continue
 
-        # ข้าม Admin และรหัสว่าง
+        # ข้าม Admin และรหัสผู้เล่นว่าง
         if not p_id or p_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # 3. ตรวจสอบวันที่ (ตัดเอาเฉพาะ YYYY-MM-DD มาเทียบ)
+        # -------------------------------------------------------
+        # 🎯 3. ตรวจสอบว่าเป็นประวัติของ "วันนี้" หรือไม่
+        # -------------------------------------------------------
         is_today = False
         if log_time:
-            # ดึงเฉพาะส่วนวันที่ เช่น "2026-08-11" จาก "2026-08-11 03:39:09"
-            log_date_part = log_time.split(" ")[0]
-            if log_date_part == today_iso or today_iso in log_time or today_th in log_time:
+            # แปลงเครื่องหมายคั่นให้เป็นแบบเดียวกันทั้งหมด
+            norm_time = log_time.replace("/", "-").replace(".", "-")
+            
+            # เช็คว่ามีองค์ประกอบวันที่ของวันนี้อยู่หรือไม่
+            if (today_iso in norm_time or 
+                today_th.replace("/", "-") in norm_time or 
+                today_th_short.replace("/", "-") in norm_time):
                 is_today = True
+            else:
+                # ลองตัดเอาเฉพาะส่วน YYYY-MM-DD หรือ DD-MM-YYYY จากคำแรก
+                first_part = norm_time.split(" ")[0].split("T")[0]
+                if first_part == today_iso or first_part == today_th.replace("/", "-"):
+                    is_today = True
         else:
+            # หากไม่มี timestamp บันทึกไว้ อนุโลมให้เป็นของวันนี้
             is_today = True
 
         if not is_today:
@@ -170,7 +210,7 @@ def home():
         p_name = p_data.get("player_name") or p_data.get("code_name") or p_id
         player_names[p_id] = p_name
 
-        # 5. รวมคะแนนและคอมโบ
+        # 5. สรุปผลคะแนนและคอมโบประจำวัน
         daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
 
         combo_weight = COMBO_RANKING.get(combo_name, 0)
@@ -183,7 +223,7 @@ def home():
             "timestamp": log_time
         })
 
-    # จัดอันดับ Top 10 คะแนนสูงสุดประจำวัน
+    # จัดอันดับ Top 10 คะแนนรวมประจำวัน
     top10_daily = []
     sorted_daily_scores = sorted(daily_scores.items(), key=lambda x: x[1], reverse=True)[:10]
     for p_id, score in sorted_daily_scores:
@@ -193,7 +233,7 @@ def home():
             "score_today": score
         })
 
-    # จัดอันดับ Top 5 คอมโบสูงสุดประจำวัน
+    # จัดอันดับ Top 5 คอมโบสูงสุดประจำวัน (เรียงตาม น้ำหนักชุดไพ่ -> คะแนนที่ได้รับ)
     sorted_combos = sorted(daily_combos, key=lambda x: (x["combo_weight"], x["score_gained"]), reverse=True)[:5]
 
     return render_template(
@@ -298,7 +338,9 @@ def api_play():
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets"}), 400
 
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        # ใช้เวลา UTC+7 ประเทศไทย
+        now_th = datetime.utcnow() + timedelta(hours=7)
+        today_str = now_th.strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
         if last_play_date != today_str:
@@ -411,16 +453,8 @@ def ranking():
 
     filtered_top_players = filtered_all_players[:10]
 
-    # จัดกลุ่มตาม Sheet Name
-    grouped_players = {}
-    for p in filtered_all_players:
-        sheet_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", "ผู้เล่นทั้งหมด")
-        if not sheet_name:
-            sheet_name = "ผู้เล่นทั้งหมด"
-            
-        if sheet_name not in grouped_players:
-            grouped_players[sheet_name] = []
-        grouped_players[sheet_name].append(p)
+    # จัดกลุ่มตาม Sheet Name หรือ Role
+    grouped_players = get_grouped_players()
 
     leaderboard_roles_data = {}
     try:
@@ -673,7 +707,7 @@ def get_leaderboards_by_role():
 
         score_val = get_val(['total_score', 'score', 'คะแนน', 'total score'], 0)
         try:
-            score_int = int(score_val)
+            score_int = int(str(score_val).replace(",", "").strip())
         except (ValueError, TypeError):
             score_int = 0
 
@@ -756,7 +790,7 @@ def get_grouped_players():
 
         score_val = get_val(['total_score', 'score', 'คะแนน', 'total score'], 0)
         try:
-            score_int = int(score_val)
+            score_int = int(str(score_val).replace(",", "").strip())
         except (ValueError, TypeError):
             score_int = 0
 
@@ -765,12 +799,21 @@ def get_grouped_players():
             match = re.match(r"^([A-Z]+)", char_id)
             p_role = match.group(1) if match else ''
 
+        # คำนวณสิทธิ์คงเหลือ
+        free_used = get_val(['free_plays_used', 'plays_used'], 0)
+        bought_used = get_val(['bought_plays_used'], 0)
+        try:
+            quota_left = max(0, (DAILY_PLAY_LIMIT + int(bought_used)) - int(free_used))
+        except (ValueError, TypeError):
+            quota_left = DAILY_PLAY_LIMIT
+
         player_dict = {
             'character_id': char_id,
             'player_id': char_id,
             'code_name': code_name,
             'total_score': score_int,
-            'role': p_role
+            'role': p_role,
+            'quota_left': f"{quota_left}/{DAILY_PLAY_LIMIT}"
         }
 
         role_full_name = role_names.get(p_role, 'อื่นๆ')
