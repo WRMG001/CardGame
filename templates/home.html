@@ -129,7 +129,10 @@
               {% endif %}
             </td>
             <td style="color: #f3e8d3;">{{ item.player_name }}</td>
-            <td style="text-align: right; color: #ffd700; font-weight: bold;">+{{ item.score_today }}</td>
+            <!-- 🎯 แก้ไขจุดนี้เรียบร้อยครับ -->
+            <td style="text-align: right; color: #ffd700; font-weight: bold;">
+              {% if item.score_today > 0 %}+{{ item.score_today }}{% else %}{{ item.score_today }}{% endif %}
+            </td>
           </tr>
           {% endfor %}
         {% else %}
