@@ -61,20 +61,7 @@ def login():
 
 
 # -------------------------------------------------------------
-# 🚪 LOGOUT ROUTE
-# -------------------------------------------------------------
-@app.route("/logout")
-def logout():
-    session.clear()
-    try:
-        logout_player()
-    except Exception as e:
-        print(f"⚠️ Error during logout: {e}")
-    return redirect("/login")
-
-
-# -------------------------------------------------------------
-# 🏠 HOME ROUTE (ปรับปรุงระบบเช็คเวลา UTC+7 และ Parsing Sheets)
+# 🏠 HOME ROUTE (ฉบับแก้ไขการดึงข้อมูลซ้ำ และป้องกัน Error 500)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -82,12 +69,32 @@ def home():
         return redirect("/login")
 
     player_id = session.get("player_id")
-    player = get_player_data(player_id) or {}
+    
+    # 1. ดึงข้อมูลผู้เล่นทั้งหมดมาไว้ใน Cache ครั้งเดียวก่อน (ลดการยิง API ซ้ำในลูป)
+    player_map = {}
+    try:
+        all_players_raw = get_all_players() or []
+        for p in all_players_raw:
+            if not p:
+                continue
+            if isinstance(p, dict):
+                pid = str(p.get("character_id") or p.get("player_id") or p.get("รหัสตัวละคร") or "").strip().upper()
+                pname = str(p.get("code_name") or p.get("player_name") or p.get("ชื่อ") or pid).strip()
+            else:
+                pid = str(getattr(p, "player_id", "") or getattr(p, "character_id", "")).strip().upper()
+                pname = str(getattr(p, "code_name", "") or getattr(p, "player_name", "") or pid).strip()
+            
+            if pid:
+                player_map[pid] = pname
+    except Exception as e:
+        print(f"⚠️ Error caching player names: {e}")
 
+    # ดึงข้อมูลผู้เล่นปัจจุบัน
+    player = get_player_data(player_id) or {}
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
 
-    # ⏰ คำนวณวันที่ปัจจุบัน (หาทั้ง YYYY-MM-DD และ DD/MM/YYYY ทั้งเวลา TH และ UTC)
+    # ⏰ คำนวณวันที่ปัจจุบัน (TH & UTC)
     now_utc = datetime.utcnow()
     now_th = now_utc + timedelta(hours=7)
     
@@ -100,14 +107,12 @@ def home():
     }
 
     try:
-        # ดึงประวัติการเล่นทั้งหมด
         all_history = get_history_from_sheets() or []
     except Exception as e:
         print(f"⚠️ Error fetching history: {e}")
         all_history = []
 
     daily_scores = {}
-    player_names = {}
     daily_combos = []
 
     for log in all_history:
@@ -120,39 +125,42 @@ def home():
         score_gained = 0
 
         # --- 1. แปลงข้อมูลไม่ว่าจะมาเป็น List หรือ Dict ---
-        if isinstance(log, (list, tuple)):
-            if len(log) < 2:
-                continue
-            # ข้ามแถว Header
-            if any(h in str(log[0]).lower() for h in ["time", "date", "เวลา", "วันที่"]):
-                continue
+        try:
+            if isinstance(log, (list, tuple)):
+                if len(log) < 2:
+                    continue
+                # ข้ามแถว Header
+                if any(h in str(log[0]).lower() for h in ["time", "date", "เวลา", "วันที่"]):
+                    continue
 
-            log_time = str(log[0]).strip()
-            p_id = str(log[1]).strip().upper()
-            
-            if len(log) > 3 and str(log[3]).strip():
-                combo_name = str(log[3]).strip()
+                log_time = str(log[0]).strip()
+                p_id = str(log[1]).strip().upper()
+                
+                if len(log) > 3 and str(log[3]).strip():
+                    combo_name = str(log[3]).strip()
 
-            # หาคะแนนรอบนี้ (เช็ค Col Index 4, 5 หรือ 2)
-            for idx in [4, 5, 2]:
-                if len(log) > idx:
-                    try:
-                        clean_score = str(log[idx]).replace(",", "").strip()
-                        score_gained = int(clean_score)
-                        break
-                    except (ValueError, TypeError):
-                        continue
+                for idx in [4, 5, 2]:
+                    if len(log) > idx:
+                        try:
+                            clean_score = str(log[idx]).replace(",", "").strip()
+                            score_gained = int(clean_score)
+                            break
+                        except (ValueError, TypeError):
+                            continue
 
-        elif isinstance(log, dict):
-            clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
-            p_id = str(clean_log.get("player_id") or clean_log.get("character_id") or clean_log.get("รหัสผู้เล่น") or "").strip().upper()
-            log_time = str(clean_log.get("timestamp") or clean_log.get("date") or clean_log.get("เวลา") or "").strip()
-            combo_name = str(clean_log.get("combo") or clean_log.get("combo_name") or clean_log.get("คอมโบ") or "High Card").strip()
-            score_val = clean_log.get("score_gained") or clean_log.get("score") or clean_log.get("คะแนนที่ได้") or 0
-            try:
-                score_gained = int(str(score_val).replace(",", "").strip())
-            except (ValueError, TypeError):
-                score_gained = 0
+            elif isinstance(log, dict):
+                clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
+                p_id = str(clean_log.get("player_id") or clean_log.get("character_id") or clean_log.get("รหัสผู้เล่น") or "").strip().upper()
+                log_time = str(clean_log.get("timestamp") or clean_log.get("date") or clean_log.get("เวลา") or "").strip()
+                combo_name = str(clean_log.get("combo") or clean_log.get("combo_name") or clean_log.get("คอมโบ") or "High Card").strip()
+                score_val = clean_log.get("score_gained") or clean_log.get("score") or clean_log.get("คะแนนที่ได้") or 0
+                try:
+                    score_gained = int(str(score_val).replace(",", "").strip())
+                except (ValueError, TypeError):
+                    score_gained = 0
+        except Exception as parse_err:
+            print(f"⚠️ History Row Parse Error: {parse_err}")
+            continue
 
         if not p_id:
             continue
@@ -160,30 +168,25 @@ def home():
         # --- 2. เช็คว่าเป็นข้อมูลของ "วันนี้" หรือไม่ ---
         is_today = False
         if log_time:
-            # ดึงเฉพาะส่วนวันที่ เช่น '2026-08-11' จาก '2026-08-11 05:08:27'
             date_part = log_time.split(" ")[0].split("T")[0].replace("/", "-")
             for t_str in today_strs:
                 if t_str.replace("/", "-") in date_part or date_part in t_str.replace("/", "-"):
                     is_today = True
                     break
         else:
-            # ถ้าไม่มี Timestamp ให้ถือว่าเป็นของวันนี้ไว้ก่อน
             is_today = True
 
-        # หากต้องการให้แสดงผลชัวร์ๆ โดยไม่สนเรื่องวันเวลามิสแมตช์ ให้คอมเมนต์บรรทัด if not is_today ออกได้ครับ
         if not is_today:
             continue
 
-        # --- 3. รวบรวมข้อมูลแสดงผล ---
-        p_data = get_player_data(p_id) or {}
-        p_name = p_data.get("player_name") or p_data.get("code_name") or p_id
-        player_names[p_id] = p_name
+        # --- 3. รวบรวมข้อมูลแสดงผล (ดึงชื่อจาก player_map ที่ Cache ไว้) ---
+        p_name = player_map.get(p_id, p_id)
 
         # รวมคะแนนวันนี้
         daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
 
         # เก็บข้อมูลคอมโบ
-        combo_weight = COMBO_RANKING.get(combo_name, 0) if 'COMBO_RANKING' in globals() else 0
+        combo_weight = COMBO_RANKING.get(combo_name, 0)
         daily_combos.append({
             "player_id": p_id,
             "player_name": p_name,
@@ -199,7 +202,7 @@ def home():
     for p_id, score in sorted_scores:
         top10_daily.append({
             "player_id": p_id,
-            "player_name": player_names.get(p_id, p_id),
+            "player_name": player_map.get(p_id, p_id),
             "score_today": score
         })
 
@@ -209,9 +212,9 @@ def home():
     return render_template(
         "home.html",
         player_id=player_id,
-        player_name=session.get("player_name", "ผู้เล่น"),
+        player_name=session.get("player_name", player_map.get(player_id, "ผู้เล่น")),
         role=session.get("role"),
-        event_luck=EVENT_LUCK if 'EVENT_LUCK' in globals() else "Normal",
+        event_luck=EVENT_LUCK,
         total_score=total_score,
         free_plays_used=free_plays_used,
         top10_daily=top10_daily,
