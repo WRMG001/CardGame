@@ -858,7 +858,7 @@ def get_grouped_players():
 # -------------------------------------------------------------
 # 🤖 CRON API: ล้างโควตาประจำวันอัตโนมัติ
 # -------------------------------------------------------------
-CRON_SECRET_TOKEN = "MY_SUPER_SECRET_CRON_KEY_1234"  # 🔑 ตั้งรหัสลับของคุณเองที่นี่
+CRON_SECRET_TOKEN = "1234"  # 🔑 ตั้งรหัสลับของคุณเองที่นี่
 
 @app.route("/api/cron/reset-daily-limits", methods=["GET", "POST"])
 def cron_reset_daily_limits():
