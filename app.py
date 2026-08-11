@@ -77,6 +77,7 @@ def logout():
 # 🏠 HOME ROUTE (ปรับปรุงระบบเช็คเวลา UTC+7 และ Parsing Sheets)
 # -------------------------------------------------------------
 @app.route("/home")
+@app.route("/home")
 def home():
     if "player_id" not in session:
         return redirect("/login")
@@ -87,13 +88,18 @@ def home():
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
 
-    # ⏰ 1. กำหนดเวลาปัจจุบันของประเทศไทย (UTC+7)
-    # ป้องกันปัญหา Server นอก (Render/Heroku/Vercel) ช้ากว่าไทย 7 ชม.
-    now_th = datetime.utcnow() + timedelta(hours=7)
-    
-    today_iso = now_th.strftime("%Y-%m-%d")                          # เช่น "2026-08-11"
-    today_th = now_th.strftime("%d/%m/%Y")                           # เช่น "11/08/2026"
-    today_th_short = f"{now_th.day}/{now_th.month}/{now_th.year}"    # เช่น "11/8/2026"
+    # ⏰ ดึงเวลาปัจจุบัน (ทั้ง UTC และ UTC+7) เพื่อเทียบวันที่ให้ครอบคลุมทุก Server
+    now_utc = datetime.utcnow()
+    now_th = now_utc + timedelta(hours=7)
+
+    # รวมรูปแบบวันที่ที่เป็นไปได้ทั้งหมดของ "วันนี้"
+    valid_today_patterns = {
+        now_th.strftime("%Y-%m-%d"),          # 2026-08-11
+        now_th.strftime("%d/%m/%Y"),          # 11/08/2026
+        f"{now_th.day}/{now_th.month}/{now_th.year}", # 11/8/2026
+        now_utc.strftime("%Y-%m-%d"),         # 2026-08-11 (UTC)
+        now_utc.strftime("%d/%m/%Y"),         # 11/08/2026 (UTC)
+    }
 
     try:
         all_history = get_history_from_sheets() or []
@@ -101,9 +107,9 @@ def home():
         print(f"⚠️ Error fetching history for home: {e}")
         all_history = []
 
-    daily_scores = {}      # { player_id: total_score_today }
-    player_names = {}      # { player_id: display_name }
-    daily_combos = []      # รายการคอมโบประจำวัน
+    daily_scores = {}
+    player_names = {}
+    daily_combos = []
 
     for log in all_history:
         if not log:
@@ -114,26 +120,20 @@ def home():
         combo_name = "High Card"
         score_gained = 0
 
-        # -------------------------------------------------------
-        # กรณีที่ 1: ข้อมูลเป็น List หรือ Tuple (Row ใน Sheet)
-        # -------------------------------------------------------
+        # --- กรณีเป็น List/Tuple ---
         if isinstance(log, (list, tuple)):
             if len(log) < 2:
                 continue
-
-            # ข้ามแถว Header (ถ้าติดมา)
             col0_str = str(log[0]).strip().lower()
-            if "time" in col0_str or "date" in col0_str or "เวลา" in col0_str or "วันที่" in col0_str:
+            if any(h in col0_str for h in ["time", "date", "เวลา", "วันที่"]):
                 continue
 
             log_time = str(log[0]).strip()
             p_id = str(log[1]).strip().upper()
 
-            # คอมโบ (อยู่ Col 3 / Index 3)
             if len(log) > 3 and str(log[3]).strip():
                 combo_name = str(log[3]).strip()
 
-            # คะแนนรอบนี้ (ตรวจสอบ Index 4, 5 หรือ 2)
             for idx in [4, 5, 2]:
                 if len(log) > idx:
                     try:
@@ -143,9 +143,7 @@ def home():
                     except (ValueError, TypeError):
                         continue
 
-        # -------------------------------------------------------
-        # กรณีที่ 2: ข้อมูลเป็น Dict
-        # -------------------------------------------------------
+        # --- กรณีเป็น Dict ---
         elif isinstance(log, dict):
             clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
 
@@ -172,45 +170,34 @@ def home():
                 score_gained = int(str(score_val).replace(",", "").strip())
             except (ValueError, TypeError):
                 score_gained = 0
-
         else:
             continue
 
-        # ข้าม Admin และรหัสผู้เล่นว่าง
         if not p_id or p_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # -------------------------------------------------------
-        # 🎯 3. ตรวจสอบว่าเป็นประวัติของ "วันนี้" หรือไม่
-        # -------------------------------------------------------
+        # 🎯 ตรวจสอบวันที่แบบยืดหยุ่น (เอาเฉพาะ Date Part มาเทียบ)
         is_today = False
         if log_time:
-            # แปลงเครื่องหมายคั่นให้เป็นแบบเดียวกันทั้งหมด
-            norm_time = log_time.replace("/", "-").replace(".", "-")
+            # ดึงเฉพาะส่วนวันที่ เช่น "2026-08-11" จาก "2026-08-11 05:08:27"
+            date_part = log_time.split(" ")[0].split("T")[0].replace(".", "-").replace("/", "-")
             
-            # เช็คว่ามีองค์ประกอบวันที่ของวันนี้อยู่หรือไม่
-            if (today_iso in norm_time or 
-                today_th.replace("/", "-") in norm_time or 
-                today_th_short.replace("/", "-") in norm_time):
-                is_today = True
-            else:
-                # ลองตัดเอาเฉพาะส่วน YYYY-MM-DD หรือ DD-MM-YYYY จากคำแรก
-                first_part = norm_time.split(" ")[0].split("T")[0]
-                if first_part == today_iso or first_part == today_th.replace("/", "-"):
+            for pat in valid_today_patterns:
+                norm_pat = pat.replace("/", "-")
+                if norm_pat == date_part or norm_pat in log_time:
                     is_today = True
+                    break
         else:
-            # หากไม่มี timestamp บันทึกไว้ อนุโลมให้เป็นของวันนี้
             is_today = True
 
         if not is_today:
             continue
 
-        # 4. ดึงชื่อผู้เล่น
+        # ดึงชื่อผู้เล่น
         p_data = get_player_data(p_id) or {}
         p_name = p_data.get("player_name") or p_data.get("code_name") or p_id
         player_names[p_id] = p_name
 
-        # 5. สรุปผลคะแนนและคอมโบประจำวัน
         daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
 
         combo_weight = COMBO_RANKING.get(combo_name, 0)
@@ -223,7 +210,7 @@ def home():
             "timestamp": log_time
         })
 
-    # จัดอันดับ Top 10 คะแนนรวมประจำวัน
+    # Top 10 คะแนนวันนี้
     top10_daily = []
     sorted_daily_scores = sorted(daily_scores.items(), key=lambda x: x[1], reverse=True)[:10]
     for p_id, score in sorted_daily_scores:
@@ -233,7 +220,7 @@ def home():
             "score_today": score
         })
 
-    # จัดอันดับ Top 5 คอมโบสูงสุดประจำวัน (เรียงตาม น้ำหนักชุดไพ่ -> คะแนนที่ได้รับ)
+    # Top 5 คอมโบวันนี้
     sorted_combos = sorted(daily_combos, key=lambda x: (x["combo_weight"], x["score_gained"]), reverse=True)[:5]
 
     return render_template(
@@ -247,7 +234,6 @@ def home():
         top10_daily=top10_daily,
         top5_combos=sorted_combos
     )
-
 # -------------------------------------------------------------
 # 1. หน้าเกมหลัก
 # -------------------------------------------------------------
