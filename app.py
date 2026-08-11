@@ -73,7 +73,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (แก้ไขการตรวจจับวันที่และ Key จาก Google Sheets)
+# 🏠 HOME ROUTE (ปรับปรุงการอ่าน List/Dict และการกรองวันที่)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -86,10 +86,10 @@ def home():
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
 
-    # 📊 ดึงวันที่ปัจจุบันในรูปแบบต่างๆ ไว้เปรียบเทียบ
+    # 📊 ดึงวันที่ปัจจุบัน
     now = datetime.now()
-    today_iso = now.strftime("%Y-%m-%d")        # 2026-03-29
-    today_th = now.strftime("%d/%m/%Y")         # 29/03/2026
+    today_iso = now.strftime("%Y-%m-%d")          # เช่น "2026-08-11"
+    today_th = now.strftime("%d/%m/%Y")           # เช่น "11/08/2026"
     
     try:
         all_history = get_history_from_sheets() or []
@@ -102,59 +102,78 @@ def home():
     daily_combos = []      # รายการคอมโบประจำวัน
 
     for log in all_history:
-        if not isinstance(log, dict):
-            continue
+        log_time = ""
+        p_id = ""
+        combo_name = "High Card"
+        score_gained = 0
 
-        # 1. ดึง Player ID (รองรับหลายชื่อ Key)
-        p_id = str(
-            log.get("player_id") or 
-            log.get("character_id") or 
-            log.get("รหัสผู้เล่น") or 
-            log.get("รหัสตัวละคร") or ""
-        ).strip().upper()
+        # 1. รองรับข้อมูลกรณีเป็น List (เช่น [Timestamp, PlayerID, Cards, Combo, Score, TotalScore])
+        if isinstance(log, (list, tuple)):
+            if len(log) < 2:
+                continue
+            log_time = str(log[0]).strip()
+            p_id = str(log[1]).strip().upper()
+            combo_name = str(log[3]).strip() if len(log) > 3 else "High Card"
+            try:
+                score_gained = int(log[4]) if len(log) > 4 else 0
+            except (ValueError, TypeError):
+                score_gained = 0
+
+        # 2. รองรับข้อมูลกรณีเป็น Dict
+        elif isinstance(log, dict):
+            p_id = str(
+                log.get("player_id") or log.get("character_id") or 
+                log.get("รหัสผู้เล่น") or log.get("รหัสตัวละคร") or log.get(1) or ""
+            ).strip().upper()
+
+            log_time = str(
+                log.get("timestamp") or log.get("created_at") or 
+                log.get("date") or log.get("เวลา") or log.get("วันที่") or log.get(0) or ""
+            ).strip()
+
+            combo_name = str(
+                log.get("combo") or log.get("combo_name") or 
+                log.get("คอมโบ") or log.get(3) or "High Card"
+            ).strip()
+
+            score_val = (
+                log.get("score_gained") or log.get("score") or 
+                log.get("คะแนนที่ได้") or log.get("คะแนน") or log.get(4) or 0
+            )
+            try:
+                score_gained = int(score_val)
+            except (ValueError, TypeError):
+                score_gained = 0
+
+        else:
+            continue
 
         # ข้าม Admin และรหัสว่าง
         if not p_id or p_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # 2. ดึง Timestamp / วันที่เวลา
-        log_time = str(
-            log.get("timestamp") or 
-            log.get("created_at") or 
-            log.get("date") or 
-            log.get("เวลา") or 
-            log.get("วันที่") or ""
-        ).strip()
-
-        # ตรวจสอบว่ามีวันที่ตรงกับวันนี้หรือไม่ (ยืดหยุ่นขึ้น)
+        # 3. ตรวจสอบวันที่ (ตัดเอาเฉพาะ YYYY-MM-DD มาเทียบ)
         is_today = False
         if log_time:
-            if log_time.startswith(today_iso) or log_time.startswith(today_th) or (today_iso in log_time) or (today_th in log_time):
+            # ดึงเฉพาะส่วนวันที่ เช่น "2026-08-11" จาก "2026-08-11 03:39:09"
+            log_date_part = log_time.split(" ")[0]
+            if log_date_part == today_iso or today_iso in log_time or today_th in log_time:
                 is_today = True
         else:
-            # กรณีไม่มี log_time บันทึกมา ให้แสดงผลไว้ก่อนกันหน้าว่าง
             is_today = True
 
         if not is_today:
             continue
 
-        # 3. ดึงชื่อผู้เล่น
-        p_name = log.get("player_name") or log.get("code_name") or log.get("ชื่อ") or log.get("ชื่อผู้เล่น") or p_id
+        # 4. ดึงชื่อผู้เล่น
+        p_data = get_player_data(p_id) or {}
+        p_name = p_data.get("player_name") or p_data.get("code_name") or p_id
         player_names[p_id] = p_name
 
-        # 4. ดึงคะแนนที่ได้รับ
-        score_val = log.get("score_gained") or log.get("score") or log.get("คะแนนที่ได้") or log.get("คะแนน") or 0
-        try:
-            score_gained = int(score_val)
-        except (ValueError, TypeError):
-            score_gained = 0
-
+        # 5. รวมคะแนนและคอมโบ
         daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
 
-        # 5. ดึงชื่อคอมโบ
-        combo_name = log.get("combo") or log.get("combo_name") or log.get("คอมโบ") or "High Card"
         combo_weight = COMBO_RANKING.get(combo_name, 0)
-
         daily_combos.append({
             "player_id": p_id,
             "player_name": p_name,
@@ -164,7 +183,7 @@ def home():
             "timestamp": log_time
         })
 
-    # จัดอันดับ 1: Top 10 คะแนนสูงสุดประจำวัน
+    # จัดอันดับ Top 10 คะแนนสูงสุดประจำวัน
     top10_daily = []
     sorted_daily_scores = sorted(daily_scores.items(), key=lambda x: x[1], reverse=True)[:10]
     for p_id, score in sorted_daily_scores:
@@ -174,7 +193,7 @@ def home():
             "score_today": score
         })
 
-    # จัดอันดับ 2: Top 5 คอมโบสูงสุดประจำวัน
+    # จัดอันดับ Top 5 คอมโบสูงสุดประจำวัน
     sorted_combos = sorted(daily_combos, key=lambda x: (x["combo_weight"], x["score_gained"]), reverse=True)[:5]
 
     return render_template(
