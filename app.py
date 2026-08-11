@@ -855,51 +855,11 @@ def get_grouped_players():
         print(f"⚠️ Error in get_grouped_players: {e}")
         return {}
 
-# ==========================================
+
+# -------------------------------------------------------------
 # 🤖 CRON API: ล้างโควตาประจำวันอัตโนมัติ
-# ==========================================
-CRON_SECRET_TOKEN = os.environ.get("CRON_SECRET_TOKEN", "MyGameReset2026Pass")  # แนะนำให้ดึงจาก Environment Variable หรือใช้ Default
-
-@app.route("/api/cron/reset-daily-limits", methods=["GET", "POST"])
-def cron_reset_daily_limits():
-    # เช็กรหัสความปลอดภัยจาก Query Parameter (?token=...)
-    auth_token = request.args.get("token")
-    if auth_token != CRON_SECRET_TOKEN:
-        return jsonify({"success": False, "message": "Unauthorized"}), 401
-
-    try:
-        all_players = get_all_players() or []
-        count = 0
-
-        for p in all_players:
-            if not p:
-                continue
-
-            s_name = p.get("sheet_name") if isinstance(p, dict) else getattr(p, "sheet_name", None)
-            r_idx = p.get("row_idx") if isinstance(p, dict) else getattr(p, "row_idx", None)
-            t_score = p.get("total_score", 0) if isinstance(p, dict) else getattr(p, "total_score", 0)
-            p_luck = p.get("player_luck", 0.0) if isinstance(p, dict) else getattr(p, "player_luck", 0.0)
-            l_date = p.get("last_play_date", "") if isinstance(p, dict) else getattr(p, "last_play_date", "")
-
-            if s_name and r_idx:
-                updated_data = {
-                    'total_score': t_score,
-                    'player_luck': p_luck,
-                    'last_play_date': l_date,
-                    'free_plays_used': 0  # 🔄 ล้างสิทธิ์การเล่นเป็น 0
-                }
-                update_player_data(s_name, r_idx, updated_data)
-                count += 1
-
-        print(f"⏰ [Cron Job] Reset daily limits for {count} players successfully.")
-        return jsonify({"success": True, "message": f"Reset {count} players successfully"}), 200
-
-    except Exception as e:
-        print(f"❌ [Cron Job Error]: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
-
-# ใส่ไว้ใน app.py
-CRON_SECRET_TOKEN = "MyGameReset2026Pass"  # 🔑 ต้องตรงกับ ?token= ใน URL
+# -------------------------------------------------------------
+CRON_SECRET_TOKEN = os.environ.get("CRON_SECRET_TOKEN", "MyGameReset2026Pass")
 
 @app.route("/api/cron/reset-daily-limits", methods=["GET", "POST"])
 def cron_reset_daily_limits():
@@ -929,20 +889,16 @@ def cron_reset_daily_limits():
                 update_player_data(s_name, r_idx, updated_data)
                 count += 1
 
-        return jsonify({"success": True, "message": f"Reset {count} players"}), 200
+        print(f"⏰ [Cron Job] Reset daily limits for {count} players successfully.")
+        return jsonify({"success": True, "message": f"Reset {count} players successfully"}), 200
     except Exception as e:
+        print(f"❌ [Cron Job Error]: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
-        
 
 
 # ==========================================
 # 🚀 APPLICATION ENTRY POINT
 # ==========================================
 if __name__ == "__main__":
-    # ดึงค่า PORT จาก Environment Variable (สำหรับรองรับ PaaS เช่น Render, Heroku) 
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
