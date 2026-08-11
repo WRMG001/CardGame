@@ -316,5 +316,4 @@ def get_history_from_sheets(player_id=None, limit=500):
         return history_list
     except Exception as e:
         print(f"❌ เกิด Error ขณะดึง History จาก Sheets: {e}")
-        return []กิด Error ขณะดึง History จาก Sheets: {e}")
         return []
