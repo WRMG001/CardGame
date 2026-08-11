@@ -3,7 +3,7 @@ import json
 import time
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -32,6 +32,11 @@ def clear_cache():
 # =============================================================
 # 🔑 UTILITY & AUTHENTICATION
 # =============================================================
+def get_now_th():
+    """ดึงเวลาปัจจุบันใน Timezone ประเทศไทย (UTC+7)"""
+    tz_th = timezone(timedelta(hours=7))
+    return datetime.now(tz_th)
+
 def clean_private_key(key: str) -> str:
     if not key:
         return key
@@ -106,12 +111,11 @@ def get_player_data(player_id):
     
     # พยายามดึงข้อมูลจาก All Players เพื่อประหยัด API Rate Limit
     all_players = get_all_players()
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_now_th().strftime("%Y-%m-%d")  # 🇹🇭 ปรับเป็นเวลาไทย UTC+7
 
     # ถ้ามีใน Cache อยู่แล้ว
     for player in all_players:
         if player.get("player_id", "").strip().upper() == search_id:
-            # ดึงข้อมูลฉบับสมบูรณ์เฉพาะเมื่อจำเป็น หรือใช้ข้อมูลจาก Cache
             break
 
     # ดึงตรงจาก Sheets หากต้องการตำแหน่ง row_idx เพื่อใช้อัปเดต
@@ -146,6 +150,7 @@ def get_player_data(player_id):
                     free_plays_used = safe_int(padded_row[7])
                     bought_plays_used = safe_int(padded_row[8])
 
+                    # 🇹🇭 Auto-Reset หากวันที่ใน Sheet ไม่ตรงกับเวลาไทยวันนี้
                     if last_play_date != today_str:
                         free_plays_used = 0
                         bought_plays_used = 0
@@ -275,7 +280,7 @@ def save_game_history(player_id, cards, combo, score_gained, final_score):
             worksheet = spreadsheet.add_worksheet(title="History", rows="1000", cols="6")
             worksheet.append_row(["Date", "Player ID", "Cards", "Combo", "Score Gained", "Final Score"])
 
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = get_now_th().strftime("%Y-%m-%d %H:%M:%S")  # 🇹🇭 บันทึกเวลาประวัติเป็นเวลาไทย
         cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
         clean_id = str(player_id).strip().upper()
 
