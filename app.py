@@ -96,7 +96,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (ฉบับแก้ไขระบบรีเซ็ตประจำวัน)
+# 🏠 HOME ROUTE (ฉบับสมบูรณ์ - แก้บั๊กคะแนนติดลบและการเรียงลำดับ)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -137,7 +137,7 @@ def home():
 
         # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
         now_th = datetime.utcnow() + timedelta(hours=7)
-        today_date = now_th.date()  # ได้เป็นวัตถุ date เช่น 2026-08-12
+        today_date = now_th.date()
 
         try:
             all_history = get_history_from_sheets() or []
@@ -194,17 +194,13 @@ def home():
                 print(f"⚠️ History Row Parse Error: {parse_err}")
                 continue
 
-            # ถ้าไม่มี p_id หรือไม่มี log_time ให้ข้ามเลย (ไม่เหมาว่าเป็นวันนี้แล้ว)
             if not p_id or not log_time_str:
                 continue
 
             # 🎯 4. ตรวจสอบว่า Log นี้เกิดขึ้นใน "วันนี้" หรือไม่
             is_today = False
-            
-            # ตัดเอาเฉพาะส่วนวันที่ YYYY-MM-DD
             date_part = log_time_str.split(" ")[0].split("T")[0].replace("/", "-")
             
-            # รองรับรูปแบบวันที่ที่หลากหลาย
             for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
                 try:
                     log_d = datetime.strptime(date_part, fmt).date()
@@ -214,12 +210,11 @@ def home():
                 except ValueError:
                     continue
 
-            # ถ้าไม่อยู่ในวันนี้ ข้ามไป
             if not is_today:
                 continue
 
             p_name = player_map.get(p_id, p_id)
-            daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
+            daily_scores[p_id] = daily_scores.get(p_id, 0) + int(score_gained)
 
             combo_weight = COMBO_RANKING.get(combo_name, 0)
             daily_combos.append({
@@ -227,18 +222,18 @@ def home():
                 "player_name": p_name,
                 "combo": combo_name,
                 "combo_weight": combo_weight,
-                "score_gained": score_gained,
+                "score_gained": int(score_gained),
                 "timestamp": log_time_str
             })
 
-        # จัดอันดับ Top 10 และ Top 5 คอมโบประจำวัน
+        # 🎯 5. จัดอันดับ TOP 10 ประจำวัน (บังคับเรียงแบบ int ป้องกันเรียงติดลบผิดพลาด)
         top10_daily = []
-        sorted_scores = sorted(daily_scores.items(), key=lambda x: x[1], reverse=True)[:10]
+        sorted_scores = sorted(daily_scores.items(), key=lambda x: int(x[1]), reverse=True)[:10]
         for p_id, score in sorted_scores:
             top10_daily.append({
                 "player_id": p_id,
                 "player_name": player_map.get(p_id, p_id),
-                "score_today": score
+                "score_today": int(score)
             })
 
         sorted_combos = sorted(daily_combos, key=lambda x: (x["combo_weight"], x["score_gained"]), reverse=True)[:5]
