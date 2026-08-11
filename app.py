@@ -96,7 +96,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE
+# 🏠 HOME ROUTE (ฉบับแก้ไขระบบรีเซ็ตประจำวัน)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -135,17 +135,9 @@ def home():
         total_score = player.get("total_score", 0)
         free_plays_used = player.get("free_plays_used", 0)
 
-        # ⏰ คำนวณวันที่ปัจจุบัน (TH & UTC)
-        now_utc = datetime.utcnow()
-        now_th = now_utc + timedelta(hours=7)
-        
-        today_strs = {
-            now_th.strftime("%Y-%m-%d"),
-            now_th.strftime("%d/%m/%Y"),
-            f"{now_th.day}/{now_th.month}/{now_th.year}",
-            now_utc.strftime("%Y-%m-%d"),
-            now_utc.strftime("%d/%m/%Y")
-        }
+        # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
+        now_th = datetime.utcnow() + timedelta(hours=7)
+        today_date = now_th.date()  # ได้เป็นวัตถุ date เช่น 2026-08-12
 
         try:
             all_history = get_history_from_sheets() or []
@@ -160,7 +152,7 @@ def home():
             if not log:
                 continue
 
-            log_time = ""
+            log_time_str = ""
             p_id = ""
             combo_name = "High Card"
             score_gained = 0
@@ -173,7 +165,7 @@ def home():
                     if any(h in str(log[0]).lower() for h in ["time", "date", "เวลา", "วันที่"]):
                         continue
 
-                    log_time = str(log[0]).strip()
+                    log_time_str = str(log[0]).strip()
                     p_id = str(log[1]).strip().upper()
                     
                     if len(log) > 3 and str(log[3]).strip():
@@ -191,7 +183,7 @@ def home():
                 elif isinstance(log, dict):
                     clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
                     p_id = str(clean_log.get("player_id") or clean_log.get("character_id") or clean_log.get("รหัสผู้เล่น") or "").strip().upper()
-                    log_time = str(clean_log.get("timestamp") or clean_log.get("date") or clean_log.get("เวลา") or "").strip()
+                    log_time_str = str(clean_log.get("date") or clean_log.get("timestamp") or clean_log.get("เวลา") or "").strip()
                     combo_name = str(clean_log.get("combo") or clean_log.get("combo_name") or clean_log.get("คอมโบ") or "High Card").strip()
                     score_val = clean_log.get("score_gained") or clean_log.get("score") or clean_log.get("คะแนนที่ได้") or 0
                     try:
@@ -202,20 +194,27 @@ def home():
                 print(f"⚠️ History Row Parse Error: {parse_err}")
                 continue
 
-            if not p_id:
+            # ถ้าไม่มี p_id หรือไม่มี log_time ให้ข้ามเลย (ไม่เหมาว่าเป็นวันนี้แล้ว)
+            if not p_id or not log_time_str:
                 continue
 
-            # เช็คว่าวันนี้ไหม
+            # 🎯 4. ตรวจสอบว่า Log นี้เกิดขึ้นใน "วันนี้" หรือไม่
             is_today = False
-            if log_time:
-                date_part = log_time.split(" ")[0].split("T")[0].replace("/", "-")
-                for t_str in today_strs:
-                    if t_str.replace("/", "-") in date_part or date_part in t_str.replace("/", "-"):
+            
+            # ตัดเอาเฉพาะส่วนวันที่ YYYY-MM-DD
+            date_part = log_time_str.split(" ")[0].split("T")[0].replace("/", "-")
+            
+            # รองรับรูปแบบวันที่ที่หลากหลาย
+            for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+                try:
+                    log_d = datetime.strptime(date_part, fmt).date()
+                    if log_d == today_date:
                         is_today = True
-                        break
-            else:
-                is_today = True
+                    break
+                except ValueError:
+                    continue
 
+            # ถ้าไม่อยู่ในวันนี้ ข้ามไป
             if not is_today:
                 continue
 
@@ -229,10 +228,10 @@ def home():
                 "combo": combo_name,
                 "combo_weight": combo_weight,
                 "score_gained": score_gained,
-                "timestamp": log_time
+                "timestamp": log_time_str
             })
 
-        # จัดอันดับ Top 10 และ Top 5 คอมโบ
+        # จัดอันดับ Top 10 และ Top 5 คอมโบประจำวัน
         top10_daily = []
         sorted_scores = sorted(daily_scores.items(), key=lambda x: x[1], reverse=True)[:10]
         for p_id, score in sorted_scores:
@@ -266,8 +265,6 @@ def home():
             top10_daily=[],
             top5_combos=[]
         )
-
-
 # -------------------------------------------------------------
 # 1. หน้าเกมหลัก
 # -------------------------------------------------------------
