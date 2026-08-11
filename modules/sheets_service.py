@@ -277,7 +277,7 @@ def save_game_history(player_id, cards, combo, score_gained, final_score):
         return False
 
 # 6. ฟังก์ชันดึงประวัติการเล่นย้อนหลังจาก Google Sheet "History"
-def get_history_from_sheets(player_id, limit=20):
+def get_history_from_sheets(player_id=None, limit=500):
     client = get_client()
     if not client:
         return []
@@ -292,23 +292,29 @@ def get_history_from_sheets(player_id, limit=20):
         if not all_rows or len(all_rows) < 2:
             return []
 
-        search_id = str(player_id).strip().upper()
+        search_id = str(player_id).strip().upper() if player_id else None
         history_list = []
 
-        # วนลูปอ่านย้อนหลังจากล่างขึ้นบน
+        # วนลูปอ่านย้อนหลังจากล่างขึ้นบน (ล่าสุดไปเก่าสุด)
         for row in reversed(all_rows[1:]):
-            if len(row) >= 6 and str(row[1]).strip().upper() == search_id:
-                history_list.append({
-                    "date": str(row[0]),
-                    "cards": str(row[2]),
-                    "combo": str(row[3]),
-                    "score_gained": safe_int(row[4]),
-                    "final_score": safe_int(row[5])
-                })
-                if len(history_list) >= limit:
-                    break
+            if len(row) >= 6:
+                row_p_id = str(row[1]).strip().upper()
+                
+                # ถ้าใส่ player_id ให้เช็ค ID ตรงกัน / ถ้าไม่ใส่ player_id (None) ให้เอามาทั้งหมด
+                if search_id is None or row_p_id == search_id:
+                    history_list.append({
+                        "date": str(row[0]),
+                        "player_id": row_p_id,
+                        "cards": str(row[2]),
+                        "combo": str(row[3]),
+                        "score_gained": safe_int(row[4]),
+                        "final_score": safe_int(row[5])
+                    })
+                    if len(history_list) >= limit:
+                        break
 
         return history_list
     except Exception as e:
         print(f"❌ เกิด Error ขณะดึง History จาก Sheets: {e}")
+        return []กิด Error ขณะดึง History จาก Sheets: {e}")
         return []
