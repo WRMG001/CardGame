@@ -73,7 +73,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (เพิ่ม Top 10 & Top 5 Combo ประจำวัน)
+# 🏠 HOME ROUTE (แก้ไขการตรวจจับวันที่และ Key จาก Google Sheets)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -86,8 +86,10 @@ def home():
     total_score = player.get("total_score", 0)
     free_plays_used = player.get("free_plays_used", 0)
 
-    # 📊 คำนวณ TOP 10 ประจำวัน (กรอบ 1) & TOP 5 COMBO ประจำวัน (กรอบ 2)
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    # 📊 ดึงวันที่ปัจจุบันในรูปแบบต่างๆ ไว้เปรียบเทียบ
+    now = datetime.now()
+    today_iso = now.strftime("%Y-%m-%d")        # 2026-03-29
+    today_th = now.strftime("%d/%m/%Y")         # 29/03/2026
     
     try:
         all_history = get_history_from_sheets() or []
@@ -103,30 +105,56 @@ def home():
         if not isinstance(log, dict):
             continue
 
-        p_id = str(log.get("player_id", "")).strip().upper()
-        # ข้าม Admin
+        # 1. ดึง Player ID (รองรับหลายชื่อ Key)
+        p_id = str(
+            log.get("player_id") or 
+            log.get("character_id") or 
+            log.get("รหัสผู้เล่น") or 
+            log.get("รหัสตัวละคร") or ""
+        ).strip().upper()
+
+        # ข้าม Admin และรหัสว่าง
         if not p_id or p_id in [aid.upper() for aid in ADMIN_IDS]:
             continue
 
-        # ตรวจสอบวันที่จาก timestamp/created_at
-        log_time = str(log.get("timestamp", log.get("created_at", "")))
-        if not log_time.startswith(today_str):
+        # 2. ดึง Timestamp / วันที่เวลา
+        log_time = str(
+            log.get("timestamp") or 
+            log.get("created_at") or 
+            log.get("date") or 
+            log.get("เวลา") or 
+            log.get("วันที่") or ""
+        ).strip()
+
+        # ตรวจสอบว่ามีวันที่ตรงกับวันนี้หรือไม่ (ยืดหยุ่นขึ้น)
+        is_today = False
+        if log_time:
+            if log_time.startswith(today_iso) or log_time.startswith(today_th) or (today_iso in log_time) or (today_th in log_time):
+                is_today = True
+        else:
+            # กรณีไม่มี log_time บันทึกมา ให้แสดงผลไว้ก่อนกันหน้าว่าง
+            is_today = True
+
+        if not is_today:
             continue
 
-        p_name = log.get("player_name") or log.get("code_name") or p_id
+        # 3. ดึงชื่อผู้เล่น
+        p_name = log.get("player_name") or log.get("code_name") or log.get("ชื่อ") or log.get("ชื่อผู้เล่น") or p_id
         player_names[p_id] = p_name
 
-        # 1. รวมคะแนนที่ได้เพิ่มประจำวัน
+        # 4. ดึงคะแนนที่ได้รับ
+        score_val = log.get("score_gained") or log.get("score") or log.get("คะแนนที่ได้") or log.get("คะแนน") or 0
         try:
-            score_gained = int(log.get("score_gained", 0))
+            score_gained = int(score_val)
         except (ValueError, TypeError):
             score_gained = 0
 
         daily_scores[p_id] = daily_scores.get(p_id, 0) + score_gained
 
-        # 2. บันทึกคอมโบประจำวัน
-        combo_name = log.get("combo") or log.get("combo_name") or "High Card"
+        # 5. ดึงชื่อคอมโบ
+        combo_name = log.get("combo") or log.get("combo_name") or log.get("คอมโบ") or "High Card"
         combo_weight = COMBO_RANKING.get(combo_name, 0)
+
         daily_combos.append({
             "player_id": p_id,
             "player_name": p_name,
@@ -160,7 +188,6 @@ def home():
         top10_daily=top10_daily,
         top5_combos=sorted_combos
     )
-
 
 # -------------------------------------------------------------
 # 1. หน้าเกมหลัก
