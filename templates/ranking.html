@@ -301,20 +301,36 @@
       }
 
       function switchLbTab(type, btn) {
-        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        if (btn && btn.parentElement) {
+          btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        }
         renderLeaderboardTable(type);
       }
 
-      // 2. ฟังก์ชัน Render กรอบรายชื่อผู้เล่นทุกคน (กรอบล่าง)
+      // 2. ฟังก์ชัน Render กรอบรายชื่อผู้เล่นทุกคน (กรอบล่าง) - ปรับปรุงการค้นหา Key ยืดหยุ่น
       function renderGroupTable(groupName) {
         const tbody = document.getElementById('group-tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        const players = globalGroupedPlayers[groupName] || [];
+        // ค้นหา key แบบ ยืดหยุ่น (ไม่สนตัวเล็ก-ใหญ่ หรือช่องว่างเกิน)
+        let players = globalGroupedPlayers[groupName];
+        
+        if (!players) {
+          const matchedKey = Object.keys(globalGroupedPlayers).find(k => {
+            const cleanK = String(k).trim().toLowerCase();
+            const cleanG = String(groupName).trim().toLowerCase();
+            return cleanK === cleanG;
+          });
+          if (matchedKey) {
+            players = globalGroupedPlayers[matchedKey];
+          }
+        }
 
-        if (!players || players.length === 0) {
+        players = players || [];
+
+        if (players.length === 0) {
           tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 15px; color: #8c6e51;">ไม่มีรายชื่อผู้เล่นในกลุ่มนี้</td></tr>`;
           return;
         }
@@ -336,8 +352,10 @@
       }
 
       function switchGroupTab(groupName, btn) {
-        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        if (btn && btn.parentElement) {
+          btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        }
         renderGroupTable(groupName);
       }
 
