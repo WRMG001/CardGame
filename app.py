@@ -839,6 +839,7 @@ def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
+        # Mapping ค่า Role ทั้งจากชื่อเต็มและ Prefix ตัวอักษรรหัส
         role_map = {
             'C': 'Customer', 'CUSTOMER': 'Customer',
             'P': 'Partner', 'PARTNER': 'Partner',
@@ -889,11 +890,15 @@ def get_grouped_players():
             except (ValueError, TypeError):
                 score_int = 0
 
+            # 🎯 ดึง Role จากคอลัมน์ หรือสกัด Prefix จากตัวอักษรรหน้านำของ char_id (เช่น P002 -> P, C014 -> C)
             p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
             
-            if not p_role:
-                match = re.match(r"^([A-Z]+)", char_id)
-                p_role = match.group(1) if match else ''
+            # สกัด Prefix ตัวอักษร เช่น 'BL', 'BA', 'P', 'C'
+            prefix_match = re.match(r"^([A-Z]+)", char_id)
+            char_prefix = prefix_match.group(1) if prefix_match else ''
+
+            # 🎯 แก้ไขการเลือกกลุ่ม: ตรวจสอบ p_role ก่อน ถ้าไม่มีให้ใช้ char_prefix จากรหัสตัวละคร
+            target_group = role_map.get(p_role) or role_map.get(char_prefix) or 'อื่นๆ'
 
             free_used = get_val(['free_plays_used', 'plays_used'], 0)
             bought_used = get_val(['bought_plays_used'], 0)
@@ -907,11 +912,10 @@ def get_grouped_players():
                 'player_id': char_id,
                 'code_name': code_name,
                 'total_score': score_int,
-                'role': p_role,
+                'role': target_group,
                 'quota_left': f"{quota_left}/{DAILY_PLAY_LIMIT}"
             }
 
-            target_group = role_map.get(p_role, 'อื่นๆ')
             grouped[target_group].append(player_dict)
 
         for group_key in grouped:
