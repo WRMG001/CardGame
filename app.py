@@ -29,7 +29,7 @@ DAILY_PLAY_LIMIT = 3
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
 
-# 🎯 ปรับปรุงลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5 (อิงตามโอกาสเกิดและความยาก)
+# 🎯 ลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5
 COMBO_RANKING = {
     "Joker Trio": 100,
     "Royal Straight Flush": 80,
@@ -45,9 +45,15 @@ COMBO_RANKING = {
 }
 
 # ==========================================
-# 🛡️ HELPER FUNCTION: SAFE GET PLAYER DATA WITH RETRY
-# (ป้องกันปัญหา Google Sheets API Lag / Rate Limit)
+# 🛠️ HELPER FUNCTIONS
 # ==========================================
+def clean_combo_name(combo_str):
+    """ลบ Emoji และอักขระพิเศษออกจากชื่อคอมโบ เพื่อให้สามารถเทียบกับ COMBO_RANKING ได้ตรงกัน"""
+    if not combo_str:
+        return "High Card"
+    clean_str = re.sub(r'[^\w\s]', '', str(combo_str)).strip()
+    return clean_str
+
 def get_player_data_safe(player_id, retries=3, delay=0.5):
     """ดึงข้อมูลผู้เล่นแบบป้องกัน Google Sheets API Lag/Timeout ชั่วคราว"""
     if not player_id:
@@ -70,7 +76,7 @@ def get_player_data_safe(player_id, retries=3, delay=0.5):
 
 
 # ==========================================
-# 🛑 GLOBAL ERROR HANDLERS (ดักจับ Error ระดับแอป)
+# 🛑 GLOBAL ERROR HANDLERS
 # ==========================================
 @app.errorhandler(500)
 def internal_error(error):
@@ -121,7 +127,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (ฉบับสมบูรณ์ - แก้บั๊กคะแนนติดลบและการเรียงลำดับ)
+# 🏠 HOME ROUTE (ฉบับแก้ไขการจัดอันดับคอมโบ และกรองผู้เล่นซ้ำ)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -150,7 +156,7 @@ def home():
         except Exception as e:
             print(f"⚠️ Error caching player names: {e}")
 
-        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน (ใช้ Safe Retry)
+        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน
         player = {}
         try:
             player = get_player_data_safe(player_id) or {}
@@ -172,7 +178,7 @@ def home():
             all_history = []
 
         daily_scores = {}
-        daily_combos = []
+        best_combo_per_player = {} # 🎯 สำหรับเก็บเฉพาะคอมโบที่ดีที่สุดของแต่ละคน
 
         for log in all_history:
             if not log:
@@ -180,22 +186,19 @@ def home():
 
             log_time_str = ""
             p_id = ""
-            combo_name = "High Card"
+            raw_combo_name = "High Card"
             score_gained = 0
 
-            # แปลงข้อมูล List/Dict
             try:
                 if isinstance(log, (list, tuple)):
-                    if len(log) < 2:
-                        continue
-                    if any(h in str(log[0]).lower() for h in ["time", "date", "เวลา", "วันที่"]):
+                    if len(log) < 2 or any(h in str(log[0]).lower() for h in ["time", "date", "เวลา", "วันที่"]):
                         continue
 
                     log_time_str = str(log[0]).strip()
                     p_id = str(log[1]).strip().upper()
                     
                     if len(log) > 3 and str(log[3]).strip():
-                        combo_name = str(log[3]).strip()
+                        raw_combo_name = str(log[3]).strip()
 
                     for idx in [4, 5, 2]:
                         if len(log) > idx:
@@ -210,7 +213,7 @@ def home():
                     clean_log = {str(k).strip().lower().replace(" ", "_"): v for k, v in log.items()}
                     p_id = str(clean_log.get("player_id") or clean_log.get("character_id") or clean_log.get("รหัสผู้เล่น") or "").strip().upper()
                     log_time_str = str(clean_log.get("date") or clean_log.get("timestamp") or clean_log.get("เวลา") or "").strip()
-                    combo_name = str(clean_log.get("combo") or clean_log.get("combo_name") or clean_log.get("คอมโบ") or "High Card").strip()
+                    raw_combo_name = str(clean_log.get("combo") or clean_log.get("combo_name") or clean_log.get("คอมโบ") or "High Card").strip()
                     score_val = clean_log.get("score_gained") or clean_log.get("score") or clean_log.get("คะแนนที่ได้") or 0
                     try:
                         score_gained = int(str(score_val).replace(",", "").strip())
@@ -242,17 +245,36 @@ def home():
             p_name = player_map.get(p_id, p_id)
             daily_scores[p_id] = daily_scores.get(p_id, 0) + int(score_gained)
 
-            combo_weight = COMBO_RANKING.get(combo_name, 0)
-            daily_combos.append({
+            # 🎯 คลีนไอคอน/อีโมจิ เพื่อหา Weight ใน COMBO_RANKING
+            cleaned_combo = clean_combo_name(raw_combo_name)
+            combo_weight = COMBO_RANKING.get(cleaned_combo, 0)
+            
+            # เผื่อกรณีคลีนแล้วยังไม่ตรง ให้ค้นจากคำย่อยใน Dictionary
+            if combo_weight == 0 and cleaned_combo != "High Card":
+                for key_combo, weight in COMBO_RANKING.items():
+                    if key_combo.lower() in raw_combo_name.lower():
+                        combo_weight = weight
+                        break
+
+            current_candidate = {
                 "player_id": p_id,
                 "player_name": p_name,
-                "combo": combo_name,
+                "combo": raw_combo_name, # แสดงชื่อดั้งเดิมรวมไอคอนบนหน้าเว็บ
                 "combo_weight": combo_weight,
                 "score_gained": int(score_gained),
                 "timestamp": log_time_str
-            })
+            }
 
-        # 🎯 5. จัดอันดับ TOP 10 ประจำวัน (บังคับเรียงแบบ int ป้องกันเรียงติดลบผิดพลาด)
+            # 🎯 เก็บเฉพาะอันดับคอมโบที่ดีที่สุดของแต่ละคน (ป้องกันชื่อซ้ำ)
+            if p_id not in best_combo_per_player:
+                best_combo_per_player[p_id] = current_candidate
+            else:
+                existing = best_combo_per_player[p_id]
+                if (combo_weight > existing["combo_weight"]) or \
+                   (combo_weight == existing["combo_weight"] and score_gained > existing["score_gained"]):
+                    best_combo_per_player[p_id] = current_candidate
+
+        # 🎯 5. จัดอันดับ TOP 10 คะแนนประจำวัน
         top10_daily = []
         sorted_scores = sorted(daily_scores.items(), key=lambda x: int(x[1]), reverse=True)[:10]
         for p_id, score in sorted_scores:
@@ -262,7 +284,12 @@ def home():
                 "score_today": int(score)
             })
 
-        sorted_combos = sorted(daily_combos, key=lambda x: (x["combo_weight"], x["score_gained"]), reverse=True)[:5]
+        # 🎯 นำเฉพาะคอมโบที่ดีที่สุดของผู้เล่นแต่ละคนมาจัด Top 5
+        sorted_combos = sorted(
+            best_combo_per_player.values(), 
+            key=lambda x: (x["combo_weight"], x["score_gained"]), 
+            reverse=True
+        )[:5]
 
         return render_template(
             "home.html",
@@ -304,7 +331,6 @@ def game():
         total_score = 0
         player_luck = 0.0
 
-        # ดึงข้อมูลจาก Google Sheets (ใช้ Safe Retry)
         player_sheet_info = None
         try:
             player_sheet_info = get_player_data_safe(player_id)
@@ -357,7 +383,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (แก้ไขจุดบัค Session & Reset ค่า)
+# 2. API สุ่มไพ่
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -367,7 +393,6 @@ def api_play():
 
         player_id = str(session.get("player_id", "")).strip().upper()
 
-        # ดึงข้อมูลผู้เล่นพร้อม Retry ป้องกัน Google Sheets API ล่าช้า
         player_sheet_info = get_player_data_safe(player_id)
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets (กรุณาลองใหม่อีกครั้ง)"}), 400
@@ -484,7 +509,6 @@ def ranking():
             print(f"⚠️ Error fetching all players: {e}")
             all_players = top_10_players
 
-        # กรอง Admin ออก
         filtered_all_players = []
         for p in all_players:
             if not p:
@@ -708,7 +732,6 @@ def leaderboard_roles_page():
 # ==========================================
 # 📊 LEADERBOARD HELPER FUNCTIONS
 # ==========================================
-
 def get_all_players_data():
     try:
         players = get_all_players()
@@ -811,12 +834,11 @@ def get_leaderboards_by_role():
             "worst_top10": []
         }
 
-# 🎯 ปรับปรุงการจัดกลุ่มให้รองรับทั้งตัวย่อและชื่อเต็ม ป้องกันปัญหารายชื่อหายไปโผล่ที่ "อื่นๆ"
+
 def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
-        # Mapping รหัสย่อ และ ชื่อเต็มให้ครอบคลุม
         role_map = {
             'C': 'Customer', 'CUSTOMER': 'Customer',
             'P': 'Partner', 'PARTNER': 'Partner',
@@ -828,7 +850,6 @@ def get_grouped_players():
             'O': 'Owner', 'OWNER': 'Owner'
         }
         
-        # สร้าง Dict รองรับหมวดหมู่หลักทั้งหมดเพื่อป้องกัน HTML หา Key ไม่เจอ
         grouped = {
             'Customer': [], 'Partner': [], 'Host': [], 
             'Black': [], 'Bartender': [], 'Waiter': [], 
@@ -868,15 +889,12 @@ def get_grouped_players():
             except (ValueError, TypeError):
                 score_int = 0
 
-            # ดึงค่า Role และแปลงเป็น ตัวใหญ่
             p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
             
-            # ถ้าไม่มี Role ให้ดึงจากตัวอักษรหน้าของ character_id (เช่น C001 -> C)
             if not p_role:
                 match = re.match(r"^([A-Z]+)", char_id)
                 p_role = match.group(1) if match else ''
 
-            # คำนวณสิทธิ์คงเหลือ
             free_used = get_val(['free_plays_used', 'plays_used'], 0)
             bought_used = get_val(['bought_plays_used'], 0)
             try:
@@ -893,11 +911,9 @@ def get_grouped_players():
                 'quota_left': f"{quota_left}/{DAILY_PLAY_LIMIT}"
             }
 
-            # จับคู่เข้ากลุ่ม (ถ้าไม่เจอให้ไป 'อื่นๆ')
             target_group = role_map.get(p_role, 'อื่นๆ')
             grouped[target_group].append(player_dict)
 
-        # จัดเรียงคะแนนจากมากไปน้อยในแต่ละกลุ่ม
         for group_key in grouped:
             grouped[group_key] = sorted(grouped[group_key], key=lambda x: x['total_score'], reverse=True)
 
