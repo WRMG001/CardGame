@@ -7,29 +7,30 @@
 
   {% if session.get('player_id') %}
     <!-- 👤 ส่วนที่แสดงเมื่อผู้เล่น Login เข้ามาแล้ว -->
-    <div style="background: #222; padding: 20px; border-radius: 10px; display: inline-block; margin: 20px 0; border: 1px solid #444;">
+    <div style="background: #222; padding: 20px; border-radius: 10px; display: inline-block; margin: 20px 0; border: 1px solid #444; min-width: 280px;">
       <h2 style="color: #4caf50; margin-bottom: 5px;">
         Welcome {{ session.get('player_name', session.get('player_id')) }}
       </h2>
       <p style="color: #aaa; margin: 5px 0;">Code: <strong>{{ session.get('player_id') }}</strong> | Role: {{ session.get('role', 'User') }}</p>
-      <p style="color: #ffca28; margin-top: 10px;">คะแนนสะสม: {{ session.get('total_score', 0) }} แต้ม</p>
+      <p style="color: #ffca28; margin-top: 10px; font-size: 18px;">
+        คะแนนสะสม: <strong>{{ total_score if total_score is defined else session.get('total_score', 0) }}</strong> แต้ม
+      </p>
     </div>
 
     <br>
-    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 200px; margin: 0 auto;">
-      <a href="/play"><button style="width: 100%; padding: 10px; cursor: pointer;">🎴 เปิดไพ่</button></a>
-      <a href="/leaderboard"><button style="width: 100%; padding: 10px; cursor: pointer;">🏆 ตารางคะแนน</button></a>
-      <a href="/history"><button style="width: 100%; padding: 10px; cursor: pointer;">📜 ประวัติการเล่น</button></a>
-      <a href="/logout"><button style="width: 100%; padding: 10px; cursor: pointer; background: #d32f2f; color: white; border: none;">🚪 Logout</button></a>
+    <!-- 🎯 ปรับให้ใช้ Class หรือ Inline-Style บน <a> โดยตรงเพื่อมาตรฐาน HTML -->
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 220px; margin: 0 auto;">
+      <a href="/play" style="display: block; padding: 12px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">🎴 เปิดไพ่</a>
+      <a href="/leaderboard" style="display: block; padding: 12px; background: #17a2b8; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">🏆 ตารางคะแนน</a>
+      <a href="/history" style="display: block; padding: 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">📜 ประวัติการเล่น</a>
+      <a href="/logout" style="display: block; padding: 12px; background: #d32f2f; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">🚪 Logout</a>
     </div>
 
   {% else %}
     <!-- 🔑 ส่วนที่แสดงเมื่อยังไม่ได้ Login -->
     <div style="margin-top: 30px;">
-      <a href="/login">
-        <button style="padding: 12px 30px; font-size: 18px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px;">
-          🚀 Login เข้าสู่ระบบ
-        </button>
+      <a href="/login" style="display: inline-block; padding: 12px 30px; font-size: 18px; background: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+        🚀 Login เข้าสู่ระบบ
       </a>
     </div>
   {% endif %}
