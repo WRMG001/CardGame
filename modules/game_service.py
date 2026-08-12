@@ -87,7 +87,6 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
         print(f"⚠️ Lucky Update Error: {e}")
         next_luck = player_luck
 
-    # ส่งคืนแค่ข้อมูลไพ่ ชื่อคอมโบ และ Luck (ไม่คำนวณคะแนนในนี้)
     return {
         "success": True,
         "cards": cards,
@@ -98,14 +97,18 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
         "final_luck": final_luck,
         "next_player_luck": next_luck
     }
-    # -------------------------------------------------------------
-# 🟢 ฟังก์ชันบันทึกประวัติการเล่น (ยอมรับคะแนนติดลบสุทธิได้จริง)
+
 # -------------------------------------------------------------
-def log_game_play(player_id, cards, combo, score_gained, final_score):
+# 🟢 ฟังก์ชันบันทึกประวัติการเล่น (แก้ไขเรื่อง Timezone UTC+7)
+# -------------------------------------------------------------
+def log_game_play(player_id, cards, combo=None, score_gained=0, final_score=0, **kwargs):
     """
     บันทึกประวัติลง SQLite ตาราง game_history 
     และอัปเดตคะแนนรวมล่าสุดลงตาราง players
     """
+    # ยืดหยุ่นรองรับการส่งชื่อ combo_name ผ่าน kwargs
+    combo_name = combo or kwargs.get("combo_name") or "High Card"
+
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -123,14 +126,14 @@ def log_game_play(player_id, cards, combo, score_gained, final_score):
             )
         """)
 
-        # 2. บันทึกประวัติการเล่นรอบนี้ (รับ score_gained และ final_score ตรงๆ ไม่ล็อค 0)
+        # 2. บันทึกประวัติการเล่นรอบนี้ (ปรับเวลาให้เป็นเวลาไทย UTC+7 ชัดเจน)
         cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
         cursor.execute("""
             INSERT INTO game_history (player_id, cards, combo, score_gained, final_score, created_at)
-            VALUES (?, ?, ?, ?, ?, DATETIME('now', 'localtime'))
-        """, (player_id, cards_str, combo, int(score_gained), int(final_score)))
+            VALUES (?, ?, ?, ?, ?, DATETIME('now', '+7 hours'))
+        """, (player_id, cards_str, combo_name, int(score_gained), int(final_score)))
 
-        # 3. อัปเดตคะแนนรวมสะสมในตาราง players ด้วย
+        # 3. อัปเดตคะแนนรวมสะสมในตาราง players
         cursor.execute("""
             UPDATE players SET score = ? WHERE player_id = ?
         """, (int(final_score), player_id))
