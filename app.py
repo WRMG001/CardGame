@@ -31,18 +31,17 @@ SHOW_LUCK_TO_PLAYERS = False
 
 # ลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5
 COMBO_RANKING = {
-    "Joker Trio": 100,
-    "Royal Straight Flush": 80,
-    "Royal Combo": 60,
-    "Straight Flush": 50,
-    "Three of a Kind": 15,
-    "Straight": 10,
-    "Flush": 5,
-    "Double Joker 🃏🃏": 10,
-    "Wild Triple 🎰": 8,
-    "Wild Pair 🃏✨": 5,
-    "One Pair": 3,
-    "High Card": 0
+    "Joker Trio": 100,             # 0.0038% (ยากที่สุดในเกม)
+    "Royal Straight Flush": 80,    # 0.061%
+    "Straight Flush": 60,          # 0.183%
+    "Three of a Kind": 50,         # 0.198% (ตองปกติ)
+    "Wild Triple 🎰": 30,           # 0.59% (Double Joker + ไพ่ธรรมดา)
+    "Straight": 25,                # 2.74% (เรียง)
+    "Flush": 20,                   # 4.17% (ดอกเดียวกัน)
+    "Royal Combo": 15,             # 4.26% (ไพ่หน้าคน J, Q, K, A)
+    "Wild Pair 🃏✨": 5,            # 15.16% (Joker 1 ใบ - ให้รางวัลความแรร์)
+    "One Pair": 3,                 # 14.27% (คู่ธรรมดา)
+    "High Card": 0                 # 58.38% (ไพ่ขยะ / ไม่เข้าคอมโบ)
 }
 
 # ==========================================
