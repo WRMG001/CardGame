@@ -29,19 +29,19 @@ DAILY_PLAY_LIMIT = 3
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
 
-# ลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5
+# 🎯 ปรับปรุงลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5 (อิงตามโอกาสเกิดและความยาก)
 COMBO_RANKING = {
-    "Joker Trio": 100,             # 0.0038% (ยากที่สุดในเกม)
-    "Royal Straight Flush": 80,    # 0.061%
-    "Straight Flush": 60,          # 0.183%
-    "Three of a Kind": 50,         # 0.198% (ตองปกติ)
-    "Wild Triple 🎰": 30,           # 0.59% (Double Joker + ไพ่ธรรมดา)
-    "Straight": 25,                # 2.74% (เรียง)
-    "Flush": 20,                   # 4.17% (ดอกเดียวกัน)
-    "Royal Combo": 15,             # 4.26% (ไพ่หน้าคน J, Q, K, A)
-    "Wild Pair 🃏✨": 5,            # 15.16% (Joker 1 ใบ - ให้รางวัลความแรร์)
-    "One Pair": 3,                 # 14.27% (คู่ธรรมดา)
-    "High Card": 0                 # 58.38% (ไพ่ขยะ / ไม่เข้าคอมโบ)
+    "Joker Trio": 100,
+    "Royal Straight Flush": 80,
+    "Straight Flush": 60,
+    "Three of a Kind": 50,
+    "Wild Triple": 30,
+    "Straight": 25,
+    "Flush": 20,
+    "Royal Combo": 15,
+    "Wild Pair": 5,
+    "One Pair": 3,
+    "High Card": 0
 }
 
 # ==========================================
@@ -111,9 +111,9 @@ def login():
 @app.route("/logout")
 def logout():
     try:
-        logout_player()  # เรียกใช้ฟังก์ชันออกจากระบบจาก modules.auth
-        session.clear()   # ล้างข้อมูล session ทั้งหมดเพื่อความปลอดภัย
-        return redirect("/login") # ส่งผู้เล่นกลับไปยังหน้าล็อกอิน
+        logout_player()  
+        session.clear()   
+        return redirect("/login") 
     except Exception as e:
         print(f"❌ Logout Error: {e}")
         session.clear()
@@ -121,7 +121,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (กรอง Admin ออกจาก TOP 10 ประจำวัน)
+# 🏠 HOME ROUTE (ฉบับสมบูรณ์ - แก้บั๊กคะแนนติดลบและการเรียงลำดับ)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -220,10 +220,6 @@ def home():
                 continue
 
             if not p_id or not log_time_str:
-                continue
-
-            # 🚫 [เพิ่มจุดแก้ไข] กรองรหัสแอดมินออกเพื่อไม่ให้แสดงใน TOP 10 ประจำวัน
-            if p_id in [aid.upper() for aid in ADMIN_IDS]:
                 continue
 
             # 🎯 4. ตรวจสอบว่า Log นี้เกิดขึ้นใน "วันนี้" หรือไม่
@@ -379,10 +375,9 @@ def api_play():
         today_str = now_th.strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
-        # 🎯 [แก้ไขจุดที่ 1] การคำนวณรอบเล่นเมื่อเปลี่ยนวันใหม่
-        bought_plays = player_sheet_info.get("bought_plays_used", 0)  # ดึงค่ารอบที่ซื้อไว้มาตลอด
+        bought_plays = player_sheet_info.get("bought_plays_used", 0)  
         if last_play_date != today_str:
-            free_plays_used = 0  # รีเซ็ตเฉพาะรอบฟรี
+            free_plays_used = 0  
         else:
             free_plays_used = player_sheet_info.get("free_plays_used", 0)
 
@@ -412,7 +407,6 @@ def api_play():
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
         next_luck = result.get("next_player_luck", current_luck)
 
-        # 🎯 [แก้ไขจุดที่ 2] อัปเดตข้อมูลลง Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             try:
                 updated_data = {
@@ -426,17 +420,15 @@ def api_play():
             except Exception as update_err:
                 print(f"⚠️ Sheets Update Error: {update_err}")
 
-        # 🎯 [แก้ไขจุดที่ 3] แก้ชื่อ Parameter ของ log_game_play ให้ถูกต้อง (combo)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=result.get("cards", []),
-                combo=combo_title,  # <-- แก้จาก combo_name เป็น combo ให้ตรงกับฟังก์ชันใน game_service.py
+                combo=combo_title, 
                 score_gained=net_score_gained,
                 final_score=new_total_score
             )
             
-            # ถ้า save_game_history ทำงานซ้ำซ้อนกับ log_game_play สามารถปิดไว้หรือใส่ try คุมได้
             if 'save_game_history' in globals():
                 save_game_history(
                     player_id=player_id,
@@ -448,7 +440,6 @@ def api_play():
         except Exception as log_err:
             print(f"⚠️ Log Warning: {log_err}")
 
-        # อัปเดต Session ล่าสุด
         session["total_score"] = new_total_score
         session["player_luck"] = next_luck
 
@@ -818,23 +809,29 @@ def get_leaderboards_by_role():
             "worst_top10": []
         }
 
-
+# 🎯 ปรับปรุงการจัดกลุ่มให้รองรับทั้งตัวย่อและชื่อเต็ม ป้องกันปัญหารายชื่อหายไปโผล่ที่ "อื่นๆ"
 def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
-        role_names = {
-            'C': 'Customer',
-            'P': 'Partner',
-            'H': 'Host',
-            'BL': 'Black',
-            'BA': 'Bartender',
-            'W': 'Waiter',
-            'G': 'Guard',
-            'O': 'Owner'
+        # Mapping รหัสย่อ และ ชื่อเต็มให้ครอบคลุม
+        role_map = {
+            'C': 'Customer', 'CUSTOMER': 'Customer',
+            'P': 'Partner', 'PARTNER': 'Partner',
+            'H': 'Host', 'HOST': 'Host',
+            'BL': 'Black', 'BLACK': 'Black',
+            'BA': 'Bartender', 'BARTENDER': 'Bartender',
+            'W': 'Waiter', 'WAITER': 'Waiter',
+            'G': 'Guard', 'GUARD': 'Guard',
+            'O': 'Owner', 'OWNER': 'Owner'
         }
         
-        grouped = {full_name: [] for full_name in role_names.values()}
+        # สร้าง Dict รองรับหมวดหมู่หลักทั้งหมดเพื่อป้องกัน HTML หา Key ไม่เจอ
+        grouped = {
+            'Customer': [], 'Partner': [], 'Host': [], 
+            'Black': [], 'Bartender': [], 'Waiter': [], 
+            'Guard': [], 'Owner': [], 'อื่นๆ': []
+        }
         
         for p in all_players:
             if not p:
@@ -869,7 +866,10 @@ def get_grouped_players():
             except (ValueError, TypeError):
                 score_int = 0
 
+            # ดึงค่า Role และแปลงเป็น ตัวใหญ่
             p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
+            
+            # ถ้าไม่มี Role ให้ดึงจากตัวอักษรหน้าของ character_id (เช่น C001 -> C)
             if not p_role:
                 match = re.match(r"^([A-Z]+)", char_id)
                 p_role = match.group(1) if match else ''
@@ -891,11 +891,13 @@ def get_grouped_players():
                 'quota_left': f"{quota_left}/{DAILY_PLAY_LIMIT}"
             }
 
-            role_full_name = role_names.get(p_role, 'อื่นๆ')
-            if role_full_name in grouped:
-                grouped[role_full_name].append(player_dict)
-            else:
-                grouped.setdefault(role_full_name, []).append(player_dict)
+            # จับคู่เข้ากลุ่ม (ถ้าไม่เจอให้ไป 'อื่นๆ')
+            target_group = role_map.get(p_role, 'อื่นๆ')
+            grouped[target_group].append(player_dict)
+
+        # จัดเรียงคะแนนจากมากไปน้อยในแต่ละกลุ่ม
+        for group_key in grouped:
+            grouped[group_key] = sorted(grouped[group_key], key=lambda x: x['total_score'], reverse=True)
 
         return grouped
     except Exception as e:
