@@ -839,11 +839,11 @@ def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
-        # 1. Map ค่า Role ทั้งแบบชื่อเต็ม และ Prefix ย่อ
+        # 🎯 1. Map ค่า Role ทั้งแบบชื่อเต็ม Prefix ย่อ และรองรับตัวพหูพจน์ (เช่น PARTNERS)
         role_map = {
-            'C': 'Customer', 'CUSTOMER': 'Customer',
-            'P': 'Partner', 'PARTNER': 'Partner',
-            'H': 'Host', 'HOST': 'Host',
+            'C': 'Customer', 'CUSTOMER': 'Customer', 'CUSTOMERS': 'Customer',
+            'P': 'Partner', 'PARTNER': 'Partner', 'PARTNERS': 'Partner',
+            'H': 'Host', 'HOST': 'Host', 'HOSTS': 'Host',
             'BL': 'Black', 'BLACK': 'Black',
             'BA': 'Bartender', 'BARTENDER': 'Bartender',
             'W': 'Waiter', 'WAITER': 'Waiter',
@@ -920,7 +920,10 @@ def get_grouped_players():
         for group_key in grouped:
             grouped[group_key] = sorted(grouped[group_key], key=lambda x: x['total_score'], reverse=True)
 
-        return grouped
+        # 🎯 5. กรองเอาเฉพาะกลุ่มที่มีผู้เล่นอย่างน้อย 1 คนขึ้นไป (ตัดกลุ่มว่างออก)
+        filtered_grouped = {k: v for k, v in grouped.items() if len(v) > 0}
+
+        return filtered_grouped
     except Exception as e:
         print(f"⚠️ Error in get_grouped_players: {e}")
         return {}
