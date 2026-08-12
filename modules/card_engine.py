@@ -8,7 +8,7 @@ def create_deck(include_joker=True):
     
     # เพิ่ม Joker 2 ใบลงในสำรับ (ถ้ากำหนดให้มี)
     if include_joker:
-        deck.extend(['🃏Joker1', '🃏Joker2'])
+        deck.extend(['🃏Joker1', '🃏Joker2', '🃏Joker3'])
         
     return deck
 
