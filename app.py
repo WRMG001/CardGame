@@ -29,16 +29,17 @@ DAILY_PLAY_LIMIT = 3
 EVENT_LUCK = 0.0 
 SHOW_LUCK_TO_PLAYERS = False
 
-# 🎯 ลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5 (อัปเดตให้ตรงกับระบบใหม่)
+# ลำดับความสำคัญ/ความหายากของคอมโบสำหรับจัดอันดับ Top 5
 COMBO_RANKING = {
     "Joker Trio": 100,
     "Royal Straight Flush": 80,
-    "Straight Flush": 60,
-    "Three of a Kind": 50,
-    "Wild Triple 🎰": 30,
-    "Straight": 25,
-    "Flush": 20,
-    "Royal Combo": 15,
+    "Royal Combo": 60,
+    "Straight Flush": 50,
+    "Three of a Kind": 15,
+    "Straight": 10,
+    "Flush": 5,
+    "Double Joker 🃏🃏": 10,
+    "Wild Triple 🎰": 8,
     "Wild Pair 🃏✨": 5,
     "One Pair": 3,
     "High Card": 0
@@ -46,6 +47,7 @@ COMBO_RANKING = {
 
 # ==========================================
 # 🛡️ HELPER FUNCTION: SAFE GET PLAYER DATA WITH RETRY
+# (ป้องกันปัญหา Google Sheets API Lag / Rate Limit)
 # ==========================================
 def get_player_data_safe(player_id, retries=3, delay=0.5):
     """ดึงข้อมูลผู้เล่นแบบป้องกัน Google Sheets API Lag/Timeout ชั่วคราว"""
@@ -69,7 +71,7 @@ def get_player_data_safe(player_id, retries=3, delay=0.5):
 
 
 # ==========================================
-# 🛑 GLOBAL ERROR HANDLERS
+# 🛑 GLOBAL ERROR HANDLERS (ดักจับ Error ระดับแอป)
 # ==========================================
 @app.errorhandler(500)
 def internal_error(error):
@@ -110,9 +112,9 @@ def login():
 @app.route("/logout")
 def logout():
     try:
-        logout_player()
-        session.clear()
-        return redirect("/login")
+        logout_player()  # เรียกใช้ฟังก์ชันออกจากระบบจาก modules.auth
+        session.clear()   # ล้างข้อมูล session ทั้งหมดเพื่อความปลอดภัย
+        return redirect("/login") # ส่งผู้เล่นกลับไปยังหน้าล็อกอิน
     except Exception as e:
         print(f"❌ Logout Error: {e}")
         session.clear()
@@ -120,7 +122,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE
+# 🏠 HOME ROUTE (กรอง Admin ออกจาก TOP 10 ประจำวัน)
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -149,7 +151,7 @@ def home():
         except Exception as e:
             print(f"⚠️ Error caching player names: {e}")
 
-        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน
+        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน (ใช้ Safe Retry)
         player = {}
         try:
             player = get_player_data_safe(player_id) or {}
@@ -159,7 +161,7 @@ def home():
         total_score = player.get("total_score", 0)
         free_plays_used = player.get("free_plays_used", 0)
 
-        # 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
+        # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
         now_th = datetime.utcnow() + timedelta(hours=7)
         today_date = now_th.date()
 
@@ -181,6 +183,7 @@ def home():
             combo_name = "High Card"
             score_gained = 0
 
+            # แปลงข้อมูล List/Dict
             try:
                 if isinstance(log, (list, tuple)):
                     if len(log) < 2:
@@ -220,6 +223,11 @@ def home():
             if not p_id or not log_time_str:
                 continue
 
+            # 🚫 [เพิ่มจุดแก้ไข] กรองรหัสแอดมินออกเพื่อไม่ให้แสดงใน TOP 10 ประจำวัน
+            if p_id in [aid.upper() for aid in ADMIN_IDS]:
+                continue
+
+            # 🎯 4. ตรวจสอบว่า Log นี้เกิดขึ้นใน "วันนี้" หรือไม่
             is_today = False
             date_part = log_time_str.split(" ")[0].split("T")[0].replace("/", "-")
             
@@ -248,6 +256,7 @@ def home():
                 "timestamp": log_time_str
             })
 
+        # 🎯 5. จัดอันดับ TOP 10 ประจำวัน (บังคับเรียงแบบ int ป้องกันเรียงติดลบผิดพลาด)
         top10_daily = []
         sorted_scores = sorted(daily_scores.items(), key=lambda x: int(x[1]), reverse=True)[:10]
         for p_id, score in sorted_scores:
@@ -299,6 +308,7 @@ def game():
         total_score = 0
         player_luck = 0.0
 
+        # ดึงข้อมูลจาก Google Sheets (ใช้ Safe Retry)
         player_sheet_info = None
         try:
             player_sheet_info = get_player_data_safe(player_id)
@@ -351,7 +361,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่ (ปรับปรุงดึงค่าจาก game_service โดยตรง)
+# 2. API สุ่มไพ่ (แก้ไขจุดบัค Session & Reset ค่า)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -361,7 +371,7 @@ def api_play():
 
         player_id = str(session.get("player_id", "")).strip().upper()
 
-        # ดึงข้อมูลผู้เล่นพร้อม Retry
+        # ดึงข้อมูลผู้เล่นพร้อม Retry ป้องกัน Google Sheets API ล่าช้า
         player_sheet_info = get_player_data_safe(player_id)
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets (กรุณาลองใหม่อีกครั้ง)"}), 400
@@ -370,9 +380,10 @@ def api_play():
         today_str = now_th.strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
-        bought_plays = player_sheet_info.get("bought_plays_used", 0)
+        # 🎯 [แก้ไขจุดที่ 1] การคำนวณรอบเล่นเมื่อเปลี่ยนวันใหม่
+        bought_plays = player_sheet_info.get("bought_plays_used", 0)  # ดึงค่ารอบที่ซื้อไว้มาตลอด
         if last_play_date != today_str:
-            free_plays_used = 0
+            free_plays_used = 0  # รีเซ็ตเฉพาะรอบฟรี
         else:
             free_plays_used = player_sheet_info.get("free_plays_used", 0)
 
@@ -386,28 +397,23 @@ def api_play():
             return jsonify({"success": False, "message": "สิทธิ์การเล่นของคุณหมดแล้ววันนี้"}), 400
 
         current_luck = player_sheet_info.get("player_luck", 0.0)
-        
-        # 🎯 1. เรียกเล่นเกมจาก game_service (รวมการสุ่มไพ่ ตรวจคอมโบ และคำนวณคะแนนให้อยู่แล้ว)
-        result = play_game(
-            player_id=player_id, 
-            player_luck=current_luck, 
-            event_luck=EVENT_LUCK,
-            player_score=current_score
-        )
+        result = play_game(player_id=player_id, player_luck=current_luck, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
             return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"}), 400
 
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
-        raw_score = result.get("raw_score", 0)
-        net_score_gained = result.get("score_gained", 0)
-        new_total_score = result.get("final_score", current_score)
+        score_calc = calculate_score(combo_title, current_score)
+
+        raw_score = score_calc["raw_score"]
+        net_score_gained = score_calc["score_gained"]
+        new_total_score = score_calc["final_score"]
 
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
         next_luck = result.get("next_player_luck", current_luck)
 
-        # 🎯 2. อัปเดตข้อมูลลง Google Sheets
+        # 🎯 [แก้ไขจุดที่ 2] อัปเดตข้อมูลลง Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             try:
                 updated_data = {
@@ -421,19 +427,17 @@ def api_play():
             except Exception as update_err:
                 print(f"⚠️ Sheets Update Error: {update_err}")
 
-        # 🎯 3. บันทึกประวัติการเล่นลง DB และ Sheets
+        # 🎯 [แก้ไขจุดที่ 3] แก้ชื่อ Parameter ของ log_game_play ให้ถูกต้อง (combo)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=result.get("cards", []),
-                combo=combo_title,
+                combo=combo_title,  # <-- แก้จาก combo_name เป็น combo ให้ตรงกับฟังก์ชันใน game_service.py
                 score_gained=net_score_gained,
                 final_score=new_total_score
             )
-        except Exception as log_err:
-            print(f"⚠️ DB Log Error: {log_err}")
-
-        try:
+            
+            # ถ้า save_game_history ทำงานซ้ำซ้อนกับ log_game_play สามารถปิดไว้หรือใส่ try คุมได้
             if 'save_game_history' in globals():
                 save_game_history(
                     player_id=player_id,
@@ -442,8 +446,8 @@ def api_play():
                     score_gained=net_score_gained,
                     final_score=new_total_score
                 )
-        except Exception as sheet_log_err:
-            print(f"⚠️ Sheets History Log Warning: {sheet_log_err}")
+        except Exception as log_err:
+            print(f"⚠️ Log Warning: {log_err}")
 
         # อัปเดต Session ล่าสุด
         session["total_score"] = new_total_score
@@ -456,8 +460,6 @@ def api_play():
             "combo_name": combo_title,
             "raw_score": raw_score,
             "score_gained": net_score_gained,
-            "formatted_gained": result.get("formatted_gained", str(net_score_gained)),
-            "is_win": result.get("is_win", False),
             "total_score": new_total_score, 
             "plays_left": new_plays_left,
             "remaining_spins": new_plays_left,
@@ -490,6 +492,7 @@ def ranking():
             print(f"⚠️ Error fetching all players: {e}")
             all_players = top_10_players
 
+        # กรอง Admin ออก
         filtered_all_players = []
         for p in all_players:
             if not p:
@@ -872,6 +875,7 @@ def get_grouped_players():
                 match = re.match(r"^([A-Z]+)", char_id)
                 p_role = match.group(1) if match else ''
 
+            # คำนวณสิทธิ์คงเหลือ
             free_used = get_val(['free_plays_used', 'plays_used'], 0)
             bought_used = get_val(['bought_plays_used'], 0)
             try:
