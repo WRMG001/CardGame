@@ -24,38 +24,11 @@ def format_card_to_string(card):
         return f"{rank}{suit}".strip()
     return str(card).strip()
 
-def evaluate_joker_combo(cards):
-    joker_cards = [c for c in cards if "Joker" in str(c)]
-    joker_count = len(joker_cards)
-
-    if joker_count == 0:
-        return None
-
-    if joker_count >= 2:
-        return {
-            "combo": "Double Joker 🃏🃏",
-            "raw_score": 10
-        }
-
-    normal_cards = [c for c in cards if "Joker" not in str(c)]
-    ranks = [c[:-1] if len(c) > 1 and c[-1] in ['♠', '♥', '♦', '♣'] else c for c in normal_cards]
-
-    if len(ranks) == 2 and ranks[0] == ranks[1]:
-        return {
-            "combo": "Wild Triple 🎰",
-            "raw_score": 8
-        }
-    
-    return {
-        "combo": "Wild Pair 🃏✨",
-        "raw_score": 5
-    }
-
 def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
-    # 🟢 คำนวณ Luck รวม
+    # 🟢 1. คำนวณ Luck รวม
     final_luck = round(player_luck + event_luck, 2)
     
-    # 🟢 1. สุ่มไพ่
+    # 🟢 2. สุ่มไพ่ 3 ใบ
     try:
         raw_cards = draw_cards(luck=final_luck)
         if isinstance(raw_cards, list):
@@ -68,30 +41,47 @@ def play_game(player_id=None, player_luck=0.0, event_luck=0.0, player_score=0):
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         cards = [f"{random.choice(ranks)}{random.choice(suits)}" for _ in range(3)]
 
-    # 🟢 2. ตรวจสอบคอมโบ (Joker หรือ ไพ่ปกติ)
-    joker_result = evaluate_joker_combo(cards)
+    # 🟢 3. ตรวจสอบคอมโบจาก combo.py (จัดการทั้ง Joker และไพ่ปกติอย่างถูกต้อง)
+    try:
+        combo_name = check_combo(cards)
+    except Exception as e:
+        print(f"⚠️ Combo Check Error: {e}")
+        combo_name = "High Card"
 
-    if joker_result:
-        combo_name = joker_result["combo"]
-    else:
-        try:
-            combo_name = check_combo(cards)
-        except Exception as e:
-            print(f"⚠️ Combo Check Error: {e}")
-            combo_name = "High Card"
+    # 🟢 4. คำนวณคะแนนจาก score.py
+    try:
+        score_info = calculate_score(combo_name, current_score=player_score)
+    except Exception as e:
+        print(f"⚠️ Calculate Score Error: {e}")
+        score_info = {
+            "combo_name": combo_name,
+            "raw_score": 0,
+            "play_cost": 1,
+            "score_gained": -1,
+            "final_score": player_score - 1,
+            "is_win": False,
+            "formatted_gained": "-1"
+        }
 
-    # 🟢 3. อัปเดต ค่า Luck ถัดไป
+    # 🟢 5. อัปเดต ค่า Luck ถัดไป
     try:
         next_luck = update_player_luck(current_luck=player_luck, combo=combo_name, cards=cards)
     except Exception as e:
         print(f"⚠️ Lucky Update Error: {e}")
         next_luck = player_luck
 
+    # 🟢 6. คืนค่าผลลัพธ์ทั้งหมดกลับไปที่ app.py หรือ Frontend
     return {
         "success": True,
         "cards": cards,
         "combo": combo_name,
         "combo_name": combo_name,
+        "raw_score": score_info["raw_score"],
+        "play_cost": score_info["play_cost"],
+        "score_gained": score_info["score_gained"],
+        "final_score": score_info["final_score"],
+        "is_win": score_info["is_win"],
+        "formatted_gained": score_info["formatted_gained"],
         "player_luck": player_luck,
         "event_luck": event_luck,
         "final_luck": final_luck,
@@ -106,7 +96,6 @@ def log_game_play(player_id, cards, combo=None, score_gained=0, final_score=0, *
     บันทึกประวัติลง SQLite ตาราง game_history 
     และอัปเดตคะแนนรวมล่าสุดลงตาราง players
     """
-    # ยืดหยุ่นรองรับการส่งชื่อ combo_name ผ่าน kwargs
     combo_name = combo or kwargs.get("combo_name") or "High Card"
 
     try:
@@ -126,7 +115,7 @@ def log_game_play(player_id, cards, combo=None, score_gained=0, final_score=0, *
             )
         """)
 
-        # 2. บันทึกประวัติการเล่นรอบนี้ (ปรับเวลาให้เป็นเวลาไทย UTC+7 ชัดเจน)
+        # 2. บันทึกประวัติการเล่นรอบนี้ (ปรับเวลา UTC+7)
         cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
         cursor.execute("""
             INSERT INTO game_history (player_id, cards, combo, score_gained, final_score, created_at)
