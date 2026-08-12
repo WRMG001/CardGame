@@ -129,7 +129,6 @@
               {% endif %}
             </td>
             <td style="color: #f3e8d3;">{{ item.player_name }}</td>
-            <!-- 🎯 แก้ไขจุดนี้เรียบร้อยครับ -->
             <td style="text-align: right; color: #ffd700; font-weight: bold;">
               {% if item.score_today > 0 %}+{{ item.score_today }}{% else %}{{ item.score_today }}{% endif %}
             </td>
@@ -209,10 +208,10 @@
 
   </div>
 
-  <!-- 🔴 กรอบที่ 2 (ขวา): TOP 5 คอมโบประจำวัน -->
+  <!-- 🔴 กรอบที่ 2 (ขวา): ผลการสุ่มวันนี้ -->
   <div class="side-card">
     <div class="side-card-header">
-      🎰 TOP 5 คอมโบวันนี้
+      🎰 ผลการสุ่มวันนี้
     </div>
     <table class="daily-table">
       <thead>
@@ -239,7 +238,7 @@
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="3" style="text-align: center; color: #8c6e51; padding: 20px;">ยังไม่มีคอมโบในวันนี้</td>
+            <td colspan="3" style="text-align: center; color: #8c6e51; padding: 20px;">ยังไม่มีผลการสุ่มในวันนี้</td>
           </tr>
         {% endif %}
       </tbody>
