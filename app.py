@@ -839,7 +839,7 @@ def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
-        # Mapping ค่า Role ทั้งจากชื่อเต็มและ Prefix ตัวอักษรรหัส
+        # 1. Map ค่า Role ทั้งแบบชื่อเต็ม และ Prefix ย่อ
         role_map = {
             'C': 'Customer', 'CUSTOMER': 'Customer',
             'P': 'Partner', 'PARTNER': 'Partner',
@@ -890,14 +890,12 @@ def get_grouped_players():
             except (ValueError, TypeError):
                 score_int = 0
 
-            # 🎯 ดึง Role จากคอลัมน์ หรือสกัด Prefix จากตัวอักษรรหน้านำของ char_id (เช่น P002 -> P, C014 -> C)
-            p_role = str(get_val(['role', 'สายงาน'], '')).strip().upper()
-            
-            # สกัด Prefix ตัวอักษร เช่น 'BL', 'BA', 'P', 'C'
+            # 🎯 2. สกัด Prefix ตัวอักษรหน้า เช่น P002 -> 'P', C090 -> 'C', BL01 -> 'BL'
+            p_role = str(get_val(['role', 'สายงาน', 'กลุ่ม'], '')).strip().upper()
             prefix_match = re.match(r"^([A-Z]+)", char_id)
             char_prefix = prefix_match.group(1) if prefix_match else ''
 
-            # 🎯 แก้ไขการเลือกกลุ่ม: ตรวจสอบ p_role ก่อน ถ้าไม่มีให้ใช้ char_prefix จากรหัสตัวละคร
+            # 🎯 3. ระบุกลุ่ม: ตรวจสอบ p_role ก่อน ถ้าไม่มี ให้ตรวจสอบ char_prefix
             target_group = role_map.get(p_role) or role_map.get(char_prefix) or 'อื่นๆ'
 
             free_used = get_val(['free_plays_used', 'plays_used'], 0)
@@ -918,6 +916,7 @@ def get_grouped_players():
 
             grouped[target_group].append(player_dict)
 
+        # 4. เรียงลำดับคะแนนจากมากไปน้อยในแต่ละกลุ่ม
         for group_key in grouped:
             grouped[group_key] = sorted(grouped[group_key], key=lambda x: x['total_score'], reverse=True)
 
