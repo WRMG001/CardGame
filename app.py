@@ -1,7 +1,7 @@
 import os
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from config import SECRET_KEY
 from modules.auth import login_player, logout_player
@@ -161,7 +161,8 @@ def home():
         free_plays_used = player.get("free_plays_used", 0)
 
         # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
-        now_th = datetime.utcnow() + timedelta(hours=7)
+        tz_th = timezone(timedelta(hours=7))
+        now_th = datetime.now(tz_th)
         today_date = now_th.date()
 
         try:
@@ -371,7 +372,8 @@ def api_play():
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets (กรุณาลองใหม่อีกครั้ง)"}), 400
 
-        now_th = datetime.utcnow() + timedelta(hours=7)
+        tz_th = timezone(timedelta(hours=7))
+        now_th = datetime.now(tz_th)
         today_str = now_th.strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
