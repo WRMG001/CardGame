@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 from config import SECRET_KEY
@@ -44,6 +45,30 @@ COMBO_RANKING = {
     "High Card": 0
 }
 
+# ==========================================
+# 🛡️ HELPER FUNCTION: SAFE GET PLAYER DATA WITH RETRY
+# (ป้องกันปัญหา Google Sheets API Lag / Rate Limit)
+# ==========================================
+def get_player_data_safe(player_id, retries=3, delay=0.5):
+    """ดึงข้อมูลผู้เล่นแบบป้องกัน Google Sheets API Lag/Timeout ชั่วคราว"""
+    if not player_id:
+        return None
+        
+    target_id = str(player_id).strip().upper()
+    
+    for attempt in range(retries):
+        try:
+            player_info = get_player_data(target_id)
+            if player_info:
+                return player_info
+        except Exception as e:
+            print(f"⚠️ Retry {attempt + 1}/{retries} fetching player_data failed: {e}")
+            
+        if attempt < retries - 1:
+            time.sleep(delay)
+            
+    return None
+
 
 # ==========================================
 # 🛑 GLOBAL ERROR HANDLERS (ดักจับ Error ระดับแอป)
@@ -79,6 +104,7 @@ def login():
     except Exception as e:
         print(f"❌ Login Error: {e}")
         return render_template("login.html", error="เกิดข้อผิดพลาดในการเข้าสู่ระบบ")
+
 
 # -------------------------------------------------------------
 # 🚪 LOGOUT ROUTE
@@ -125,10 +151,10 @@ def home():
         except Exception as e:
             print(f"⚠️ Error caching player names: {e}")
 
-        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน
+        # 2. ดึงข้อมูลผู้เล่นปัจจุบัน (ใช้ Safe Retry)
         player = {}
         try:
-            player = get_player_data(player_id) or {}
+            player = get_player_data_safe(player_id) or {}
         except Exception as e:
             print(f"⚠️ Error get_player_data in home: {e}")
 
@@ -260,6 +286,8 @@ def home():
             top10_daily=[],
             top5_combos=[]
         )
+
+
 # -------------------------------------------------------------
 # 1. หน้าเกมหลัก
 # -------------------------------------------------------------
@@ -276,10 +304,10 @@ def game():
         total_score = 0
         player_luck = 0.0
 
-        # ดึงข้อมูลจาก Google Sheets
+        # ดึงข้อมูลจาก Google Sheets (ใช้ Safe Retry)
         player_sheet_info = None
         try:
-            player_sheet_info = get_player_data(player_id)
+            player_sheet_info = get_player_data_safe(player_id)
         except Exception as e:
             print(f"⚠️ Error fetching player_data in game route: {e}")
 
@@ -339,9 +367,10 @@ def api_play():
 
         player_id = str(session.get("player_id", "")).strip().upper()
 
-        player_sheet_info = get_player_data(player_id)
+        # ดึงข้อมูลผู้เล่นพร้อม Retry ป้องกัน Google Sheets API ล่าช้า
+        player_sheet_info = get_player_data_safe(player_id)
         if not player_sheet_info:
-            return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets"}), 400
+            return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets (กรุณาลองใหม่อีกครั้ง)"}), 400
 
         now_th = datetime.utcnow() + timedelta(hours=7)
         today_str = now_th.strftime("%Y-%m-%d")
@@ -544,7 +573,7 @@ def admin_dashboard():
             elif action == "search_player":
                 try:
                     target_id = request.form.get("target_player_id", "").strip().upper()
-                    searched_player = get_player_data(target_id)
+                    searched_player = get_player_data_safe(target_id)
                     if not searched_player:
                         msg = f"❌ ไม่พบรหัสผู้เล่น {target_id}"
                 except Exception as e:
@@ -555,7 +584,7 @@ def admin_dashboard():
                 try:
                     score_change = int(request.form.get("score_change", 0))
                     
-                    player_info = get_player_data(target_id)
+                    player_info = get_player_data_safe(target_id)
                     if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                         new_score = int(player_info.get("total_score", 0)) + score_change
                         updated_data = {
@@ -567,14 +596,14 @@ def admin_dashboard():
                         update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
 
                     msg = f"✅ ปรับคะแนนของ {target_id} สำเร็จ!"
-                    searched_player = get_player_data(target_id)
+                    searched_player = get_player_data_safe(target_id)
                 except Exception as e:
                     msg = f"❌ เกิดข้อผิดพลาด: {str(e)}"
 
             elif action == "reset_limit":
                 target_id = request.form.get("target_player_id", "").strip().upper()
                 try:
-                    player_info = get_player_data(target_id)
+                    player_info = get_player_data_safe(target_id)
                     if player_info and player_info.get("sheet_name") and player_info.get("row_idx"):
                         updated_data = {
                             'total_score': player_info.get("total_score", 0),
@@ -585,7 +614,7 @@ def admin_dashboard():
                         update_player_data(player_info["sheet_name"], player_info["row_idx"], updated_data)
 
                     msg = f"✅ รีเซ็ตสิทธิ์ของ {target_id} เป็น {DAILY_PLAY_LIMIT} รอบเรียบร้อย!"
-                    searched_player = get_player_data(target_id)
+                    searched_player = get_player_data_safe(target_id)
                 except Exception as e:
                     msg = f"❌ เกิดข้อผิดพลาดในการรีเซ็ต: {str(e)}"
 
