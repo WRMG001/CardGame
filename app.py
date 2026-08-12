@@ -357,7 +357,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่
+# 2. API สุ่มไพ่ (แก้ไขจุดบัค Session & Reset ค่า)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -376,12 +376,12 @@ def api_play():
         today_str = now_th.strftime("%Y-%m-%d")
         last_play_date = player_sheet_info.get("last_play_date", "")
 
+        # 🎯 [แก้ไขจุดที่ 1] การคำนวณรอบเล่นเมื่อเปลี่ยนวันใหม่
+        bought_plays = player_sheet_info.get("bought_plays_used", 0)  # ดึงค่ารอบที่ซื้อไว้มาตลอด
         if last_play_date != today_str:
-            free_plays_used = 0
-            bought_plays = 0
+            free_plays_used = 0  # รีเซ็ตเฉพาะรอบฟรี
         else:
             free_plays_used = player_sheet_info.get("free_plays_used", 0)
-            bought_plays = player_sheet_info.get("bought_plays_used", 0)
 
         try:
             current_score = int(player_sheet_info.get("total_score", 0))
@@ -396,7 +396,7 @@ def api_play():
         result = play_game(player_id=player_id, player_luck=current_luck, event_luck=EVENT_LUCK)
 
         if not result.get("success"):
-            return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"})
+            return jsonify({"success": False, "message": "ไม่สามารถเล่นได้"}), 400
 
         combo_title = result.get("combo") or result.get("combo_name") or "High Card"
         score_calc = calculate_score(combo_title, current_score)
@@ -407,12 +407,14 @@ def api_play():
 
         new_free_plays_used = free_plays_used + 1
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
+        next_luck = result.get("next_player_luck", current_luck)
 
+        # 🎯 [แก้ไขจุดที่ 2] อัปเดตข้อมูลลง Google Sheets
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             try:
                 updated_data = {
                     'total_score': new_total_score,
-                    'player_luck': result.get("next_player_luck", current_luck),
+                    'player_luck': next_luck,
                     'last_play_date': today_str,
                     'free_plays_used': new_free_plays_used,
                     'bought_plays_used': bought_plays
@@ -421,26 +423,31 @@ def api_play():
             except Exception as update_err:
                 print(f"⚠️ Sheets Update Error: {update_err}")
 
+        # 🎯 [แก้ไขจุดที่ 3] แก้ชื่อ Parameter ของ log_game_play ให้ถูกต้อง (combo)
         try:
             log_game_play(
                 player_id=player_id,
                 cards=result.get("cards", []),
-                combo_name=combo_title,
+                combo=combo_title,  # <-- แก้จาก combo_name เป็น combo ให้ตรงกับฟังก์ชันใน game_service.py
                 score_gained=net_score_gained,
                 final_score=new_total_score
             )
-            save_game_history(
-                player_id=player_id,
-                cards=result.get("cards", []),
-                combo=combo_title,
-                score_gained=net_score_gained,
-                final_score=new_total_score
-            )
+            
+            # ถ้า save_game_history ทำงานซ้ำซ้อนกับ log_game_play สามารถปิดไว้หรือใส่ try คุมได้
+            if 'save_game_history' in globals():
+                save_game_history(
+                    player_id=player_id,
+                    cards=result.get("cards", []),
+                    combo=combo_title,
+                    score_gained=net_score_gained,
+                    final_score=new_total_score
+                )
         except Exception as log_err:
             print(f"⚠️ Log Warning: {log_err}")
 
+        # อัปเดต Session ล่าสุด
         session["total_score"] = new_total_score
-        session["player_luck"] = result.get("next_player_luck", 0.0)
+        session["player_luck"] = next_luck
 
         return jsonify({
             "success": True,
@@ -451,8 +458,10 @@ def api_play():
             "score_gained": net_score_gained,
             "total_score": new_total_score, 
             "plays_left": new_plays_left,
-            "remaining_spins": new_plays_left
+            "remaining_spins": new_plays_left,
+            "player_luck": next_luck
         })
+
     except Exception as e:
         print(f"❌ Play API Error: {e}")
         return jsonify({"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}), 500
