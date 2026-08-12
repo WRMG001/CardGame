@@ -5,9 +5,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!playBtn) return;
 
+    // 🛑 1. ตัวแปรสำหรับเช็กว่ากำลังอยู่ในระหว่างสุ่มไพ่หรือไม่
+    let isProcessingPlay = false;
+
+    // 🛑 2. ดักจับการกด F5 หรือ ปิดหน้าจอ ขณะกำลังสุ่มไพ่
+    window.addEventListener("beforeunload", (event) => {
+        if (isProcessingPlay) {
+            event.preventDefault();
+            // ข้อความเตือนมาตรฐานสำหรับเบราว์เซอร์
+            event.returnValue = "กำลังบันทึกผลการเล่น ห้ามรีเฟรชหน้าจอเด็ดขาด!";
+        }
+    });
+
     playBtn.addEventListener("click", async () => {
+        // ป้องกันการกดซ้ำถ้ากำลังประมวลผลอยู่
+        if (isProcessingPlay) return;
+
+        isProcessingPlay = true; // 🔒 ล็อคสถานะเริ่มสุ่ม
         playBtn.disabled = true;
         playBtn.innerText = "⏳ กำลังหมุน...";
+        
         if (resultBox) {
             resultBox.innerHTML = `<h3>กำลังลุ้นไพ่...</h3><p>ขอให้โชคดี!</p>`;
         }
@@ -27,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert(data.message || "เกิดข้อผิดพลาดในการสุ่มไพ่");
                 playBtn.disabled = false;
                 playBtn.innerText = "🎰 เปิดไพ่อีกรอบ";
+                isProcessingPlay = false; // 🔓 ปลดล็อคเมื่อเจอ error
                 return;
             }
 
@@ -63,6 +81,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     playBtn.innerText = "🔄 เปิดไพ่อีกรอบ";
                 }
 
+                isProcessingPlay = false; // 🔓 ปลดล็อคเมื่อแสดงผลไพ่เสร็จสมบูรณ์
+
             }, 1500);
 
         } catch (error) {
@@ -70,6 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
             playBtn.disabled = false;
             playBtn.innerText = "🔄 ลองใหม่อีกครั้ง";
+            isProcessingPlay = false; // 🔓 ปลดล็อคเมื่อจับ error ได้
         }
     });
 });
