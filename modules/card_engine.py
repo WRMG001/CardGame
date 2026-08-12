@@ -1,12 +1,12 @@
 import random
 
 def create_deck(include_joker=True):
-    """ สร้างสำรับไพ่ 52 ใบมาตรฐาน + Joker """
+    """ สร้างสำรับไพ่ 52 ใบมาตรฐาน + Joker 3 ใบ (รวม 55 ใบ) """
     suits = ['♠', '♥', '♦', '♣']
     ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
     deck = [f"{r}{s}" for s in suits for r in ranks]
     
-    # เพิ่ม Joker 2 ใบลงในสำรับ (ถ้ากำหนดให้มี)
+    # เพิ่ม Joker 3 ใบลงในสำรับ (ถ้ากำหนดให้มี)
     if include_joker:
         deck.extend(['🃏Joker1', '🃏Joker2', '🃏Joker3'])
         
