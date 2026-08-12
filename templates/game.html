@@ -100,7 +100,7 @@
   <!-- Action Buttons -->
   <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap;">
     {% if plays_left is not defined or plays_left > 0 %}
-      <button id="playBtn" onclick="startSlotSpin()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">
+      <button id="playBtn" type="button" onclick="startSlotSpin()" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #00b4d8; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;">
         🎰 เริ่มสุ่มไพ่
       </button>
     {% elif can_buy_more is defined and can_buy_more %}
@@ -114,7 +114,7 @@
     {% endif %}
 
     <a href="/home" id="homeBtnLink">
-      <button id="homeBtn" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
+      <button id="homeBtn" type="button" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background: #4a4e69; color: white; border: none; border-radius: 6px; cursor: pointer;">
         🏠 กลับหน้าหลัก
       </button>
     </a>
@@ -122,6 +122,16 @@
 </div>
 
 <script>
+  let isSpinning = false;
+
+  // 🛑 เพิ่มระบบดักจับการรีเฟรชหน้าจอ (F5) หรือปิดแท็บ ขณะกำลังสุ่มไพ่
+  window.addEventListener("beforeunload", (event) => {
+    if (isSpinning) {
+      event.preventDefault();
+      event.returnValue = "ระบบกำลังบันทึกคะแนนลงเซิร์ฟเวอร์ ห้ามรีเฟรชหน้าจอเด็ดขาด!";
+    }
+  });
+
   // เอฟเฟกต์เสียงเปิดไพ่และชนะ
   function playSound(type) {
     try {
@@ -187,12 +197,10 @@
     `;
   }
 
-  let isSpinning = false;
-
   // ฟังก์ชันเริ่มสุ่มไพ่
   async function startSlotSpin() {
     if (isSpinning) return;
-    isSpinning = true;
+    isSpinning = true; // 🔒 ล็อกสถานะเริ่มสุ่ม
 
     const btn = document.getElementById('playBtn');
     const homeBtn = document.getElementById('homeBtn');
@@ -200,24 +208,30 @@
     const playsLeftDisplay = document.getElementById('playsLeftDisplay');
 
     // ล็อกปุ่มระหว่างสุ่ม
-    btn.disabled = true;
-    btn.innerText = '🎰 กำลังหมุน...';
-    btn.style.background = '#6c757d';
-    btn.style.cursor = 'not-allowed';
-    homeBtn.style.opacity = '0.5';
-    homeBtn.style.pointerEvents = 'none';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '🎰 กำลังหมุน...';
+      btn.style.background = '#6c757d';
+      btn.style.cursor = 'not-allowed';
+    }
+    if (homeBtn) {
+      homeBtn.style.opacity = '0.5';
+      homeBtn.style.pointerEvents = 'none';
+    }
 
     resultBox.innerHTML = '<h3 style="color: #ffb703; margin: 5px 0;">กำลังลุ้นไพ่...</h3><p style="font-size: 14px; margin: 5px 0; color: #ccc;">ขอให้โชคดี!</p>';
 
     // รีเซ็ตการคว่ำไพ่
     for (let i = 0; i < 3; i++) {
-      document.getElementById(`card-slot-${i}`).classList.remove('flipped', 'stop-spin');
+      const slot = document.getElementById(`card-slot-${i}`);
+      if (slot) slot.classList.remove('flipped', 'stop-spin');
     }
 
     playSound('flip');
     const spinInterval = setInterval(() => {
       for (let i = 0; i < 3; i++) {
-        document.getElementById(`back-symbol-${i}`).innerText = getRandomDummySymbol();
+        const symbol = document.getElementById(`back-symbol-${i}`);
+        if (symbol) symbol.innerText = getRandomDummySymbol();
       }
     }, 60);
 
@@ -234,19 +248,10 @@
 
       if (data.success) {
         const cards = data.cards;
-        // ดึงชื่อ combo แบบป้องกันค่า undefined
         const comboName = data.combo || data.combo_name || "High Card";
 
-        // 🟢 1. ดึงคะแนนดิบ (raw_score) หากไม่มีให้ fallback ไปที่ score_gained หรือ 0
         let displayScore = (data.raw_score !== undefined) ? data.raw_score : (data.score_gained || 0);
-
-        // 🟢 2. Format การแสดงตัวเลขคะแนนป้องกันการเกิด +-1
-        let formattedScoreText = "";
-        if (displayScore > 0) {
-          formattedScoreText = `+${displayScore}`; // เติมเครื่องหมาย + เฉพาะกรณีแต้ม > 0
-        } else {
-          formattedScoreText = `${displayScore}`;  // ถ้าเป็น 0 หรือติดลบ ให้โชว์ตัวเลขปกติ (เช่น 0)
-        }
+        let formattedScoreText = displayScore > 0 ? `+${displayScore}` : `${displayScore}`;
 
         // ค่อยๆ หงายไพ่เปิดทีละใบ
         for (let i = 0; i < 3; i++) {
@@ -254,8 +259,8 @@
           const slot = document.getElementById(`card-slot-${i}`);
           const front = document.getElementById(`front-content-${i}`);
 
-          front.innerHTML = renderFrontCard(cards[i]);
-          slot.classList.add('flipped', 'stop-spin');
+          if (front) front.innerHTML = renderFrontCard(cards[i]);
+          if (slot) slot.classList.add('flipped', 'stop-spin');
           playSound('flip');
         }
 
@@ -267,48 +272,58 @@
           `;
           if (comboName !== "High Card") playSound('win');
 
-          // อัปเดตตัวเลขสิทธิ์คงเหลือบนหน้าจอ
           if (playsLeftDisplay && data.plays_left !== undefined) {
             playsLeftDisplay.innerText = data.plays_left;
           }
 
-          // เช็กสิทธิ์คงเหลือเพื่อปรับสถานะปุ่ม
           if (data.plays_left > 0) {
-            btn.innerText = '🔄 เปิดไพ่อีกรอบ';
-            btn.style.background = '#00b4d8';
-            btn.style.cursor = 'pointer';
-            btn.disabled = false;
+            if (btn) {
+              btn.innerText = '🔄 เปิดไพ่อีกรอบ';
+              btn.style.background = '#00b4d8';
+              btn.style.cursor = 'pointer';
+              btn.disabled = false;
+            }
           } else {
-            btn.style.display = 'none';
+            if (btn) btn.style.display = 'none';
             resultBox.innerHTML += `<p style="color: #ff4d6d; font-weight: bold; margin-top: 10px;">โควตาการเล่นประจำวันของคุณหมดแล้ว</p>`;
           }
 
-          homeBtn.style.opacity = '1';
-          homeBtn.style.pointerEvents = 'auto';
-          isSpinning = false;
+          if (homeBtn) {
+            homeBtn.style.opacity = '1';
+            homeBtn.style.pointerEvents = 'auto';
+          }
+          isSpinning = false; // 🔓 ปลดล็อกสถานะเมื่อแสดงผลเสร็จ
         }, 500);
 
       } else {
         resultBox.innerHTML = `<p style="color: #ff4d6d;">⚠️ ${data.message}</p>`;
-        btn.innerText = 'ลองใหม่อีกครั้ง';
-        btn.disabled = false;
-        btn.style.background = '#00b4d8';
-        btn.style.cursor = 'pointer';
-        homeBtn.style.opacity = '1';
-        homeBtn.style.pointerEvents = 'auto';
-        isSpinning = false;
+        if (btn) {
+          btn.innerText = 'ลองใหม่อีกครั้ง';
+          btn.disabled = false;
+          btn.style.background = '#00b4d8';
+          btn.style.cursor = 'pointer';
+        }
+        if (homeBtn) {
+          homeBtn.style.opacity = '1';
+          homeBtn.style.pointerEvents = 'auto';
+        }
+        isSpinning = false; // 🔓 ปลดล็อกสถานะ
       }
 
     } catch (err) {
       clearInterval(spinInterval);
       resultBox.innerHTML = `<p style="color: #ff4d6d;">⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์</p>`;
-      btn.innerText = 'ลองใหม่อีกครั้ง';
-      btn.disabled = false;
-      btn.style.background = '#e63946';
-      btn.style.cursor = 'pointer';
-      homeBtn.style.opacity = '1';
-      homeBtn.style.pointerEvents = 'auto';
-      isSpinning = false;
+      if (btn) {
+        btn.innerText = 'ลองใหม่อีกครั้ง';
+        btn.disabled = false;
+        btn.style.background = '#e63946';
+        btn.style.cursor = 'pointer';
+      }
+      if (homeBtn) {
+        homeBtn.style.opacity = '1';
+        homeBtn.style.pointerEvents = 'auto';
+      }
+      isSpinning = false; // 🔓 ปลดล็อกสถานะ
     }
   }
 </script>
