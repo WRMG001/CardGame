@@ -49,14 +49,14 @@ def get_client():
         try:
             creds_dict = json.loads(creds_env)
             if 'private_key' in creds_dict and creds_dict['private_key']:
-                creds_dict['private_key'] = creds_dict['private_key'].replace('\\n', '\n')
+                creds_dict['private_key'] = clean_private_key(creds_dict['private_key'])
                 
             creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
             return gspread.authorize(creds)
         except Exception as e:
             print(f"❌ Error initializing credentials from ENV: {e}")
-            return None
             
+    # กรณีไม่มี ENV หรือ อ่าน ENV ล้มเหลว ให้ใช้ไฟล์ credentials.json
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     json_path = os.path.join(base_dir, "credentials.json")
     if os.path.exists(json_path):
@@ -65,7 +65,6 @@ def get_client():
             return gspread.authorize(creds)
         except Exception as e:
             print(f"❌ Error reading sheets from file: {e}")
-            return None
 
     return None
 
@@ -102,77 +101,88 @@ def parse_role_from_prefix(code_id):
     return 'customer'
 
 # =============================================================
-# 📊 CORE FUNCTIONS WITH CACHING
+# 📊 CORE FUNCTIONS WITH CACHING & OPTIMIZATION
 # =============================================================
 
-# 1. ฟังก์ชันค้นหาข้อมูลผู้เล่น (พร้อม Auto-Reset สิทธิ์ถ้าข้ามวัน)
-def get_player_data(player_id):
-    search_id = player_id.strip().upper()
-    
-    # พยายามดึงข้อมูลจาก All Players เพื่อประหยัด API Rate Limit
-    all_players = get_all_players()
-    today_str = get_now_th().strftime("%Y-%m-%d")  # 🇹🇭 ปรับเป็นเวลาไทย UTC+7
+# 1. ฟังก์ชันดึงข้อมูลผู้เล่นทั้งหมด (มี Cache 60 วินาที)
+def get_all_players():
+    global _PLAYERS_CACHE, _PLAYERS_CACHE_TIME
+    now = time.time()
 
-    # ถ้ามีใน Cache อยู่แล้ว
-    for player in all_players:
-        if player.get("player_id", "").strip().upper() == search_id:
-            break
+    # คืนค่าจาก Cache หากยังไม่หมดอายุ
+    if _PLAYERS_CACHE is not None and (now - _PLAYERS_CACHE_TIME) < _CACHE_EXPIRATION_SECONDS:
+        return _PLAYERS_CACHE
 
-    # ดึงตรงจาก Sheets หากต้องการตำแหน่ง row_idx เพื่อใช้อัปเดต
     client = get_client()
     if not client:
-        print("❌ ไม่สามารถสร้าง gspread client ได้")
-        return None
+        return _PLAYERS_CACHE or []
 
+    all_players = []
     try:
         spreadsheet = client.open_by_key(SPREADSHEET_ID)
-        
+        today_str = get_now_th().strftime("%Y-%m-%d")
+
         for worksheet in spreadsheet.worksheets():
             if worksheet.title == "History":
                 continue
-
             all_rows = worksheet.get_all_values()
-            
-            for row_idx, row in enumerate(all_rows, start=1):
+            if not all_rows or len(all_rows) < 2:
+                continue
+
+            for row_idx, row in enumerate(all_rows[1:], start=2):
                 if not row or len(row) < 2:
                     continue
-                
-                cell_code = str(row[1]).strip().upper()
-                
-                if cell_code == search_id:
-                    padded_row = row + [""] * (9 - len(row)) if len(row) < 9 else row
-                    
-                    code_id = str(padded_row[1]).strip()
-                    code_name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else code_id
-                    role = parse_role_from_prefix(code_id)
 
+                player_id = str(row[1]).strip().upper()
+                if player_id:
+                    padded_row = row + [""] * (9 - len(row)) if len(row) < 9 else row
+                    name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else player_id
+                    score = safe_int(padded_row[4])
+                    luck = safe_float(padded_row[5])
                     last_play_date = str(padded_row[6]).strip()
                     free_plays_used = safe_int(padded_row[7])
                     bought_plays_used = safe_int(padded_row[8])
 
-                    # 🇹🇭 Auto-Reset หากวันที่ใน Sheet ไม่ตรงกับเวลาไทยวันนี้
+                    # Auto Reset วันใหม่
                     if last_play_date != today_str:
                         free_plays_used = 0
                         bought_plays_used = 0
 
-                    return {
-                        "sheet_name": worksheet.title,
-                        "row_idx": row_idx,
-                        "player_id": code_id,
-                        "player_name": code_name,
-                        "role": role,
-                        "total_score": safe_int(padded_row[4]),
-                        "player_luck": safe_float(padded_row[5]),
-                        "last_play_date": last_play_date,
-                        "free_plays_used": free_plays_used,
-                        "bought_plays_used": bought_plays_used,
-                    }
+                    all_players.append({
+                        'sheet_name': worksheet.title,
+                        'row_idx': row_idx,
+                        'player_id': player_id,
+                        'code_name': name,
+                        'player_name': name,
+                        'role': parse_role_from_prefix(player_id),
+                        'total_score': score,
+                        'player_luck': luck,
+                        'last_play_date': last_play_date,
+                        'free_plays_used': free_plays_used,
+                        'bought_plays_used': bought_plays_used
+                    })
+
+        _PLAYERS_CACHE = all_players
+        _PLAYERS_CACHE_TIME = now
     except Exception as e:
-        print(f"❌ เกิด Error ขณะอ่าน Sheet: {e}")
-        
+        print(f"❌ เกิด Error ขณะดึงข้อมูล All Players: {e}")
+        return _PLAYERS_CACHE or []
+
+    return all_players
+
+# 2. ฟังก์ชันค้นหาข้อมูลผู้เล่น (ดึงผ่าน Cache ก่อนเพื่อประหยัด API)
+def get_player_data(player_id):
+    search_id = player_id.strip().upper()
+    all_players = get_all_players()
+
+    # ค้นหาใน Cache ก่อน
+    for player in all_players:
+        if player.get("player_id", "").strip().upper() == search_id:
+            return player.copy()
+
     return None
 
-# 2. ฟังก์ชันอัปเดตข้อมูลผู้เล่น
+# 3. ฟังก์ชันอัปเดตข้อมูลผู้เล่น
 def update_player_data(sheet_name, row_idx, updated_data):
     client = get_client()
     if not client:
@@ -191,14 +201,14 @@ def update_player_data(sheet_name, row_idx, updated_data):
         ]]
         worksheet.update(cell_range, values)
         
-        # 🔄 เคลียร์ Cache เพื่อให้ครั้งถัดไปดึงข้อมูลที่อัปเดตแล้ว
+        # 🔄 เคลียร์ Cache เพื่อให้เรียกครั้งถัดไปได้ข้อมูลใหม่ล่าสุด
         clear_cache()
         return True
     except Exception as e:
         print(f"❌ เกิด Error ขณะอัปเดต Sheet: {e}")
         return False
 
-# 3. ฟังก์ชันดึงตารางคะแนนสูงสุด (Leaderboard)
+# 4. ฟังก์ชันดึงตารางคะแนนสูงสุด (Leaderboard)
 def get_leaderboard(limit=10):
     all_players = get_all_players()
     if not all_players:
@@ -210,62 +220,10 @@ def get_leaderboard(limit=10):
     for p in sorted_players[:limit]:
         leaderboard.append({
             "player_id": p.get("player_id"),
-            "player_name": p.get("name") or p.get("code_name") or p.get("player_id"),
+            "player_name": p.get("player_name") or p.get("player_id"),
             "total_score": p.get("total_score", 0)
         })
     return leaderboard
-
-# 4. ฟังก์ชันดึงข้อมูลผู้เล่นทั้งหมด (มี Cache 60 วินาที)
-def get_all_players():
-    global _PLAYERS_CACHE, _PLAYERS_CACHE_TIME
-    now = time.time()
-
-    # คืนค่าจาก Cache หากยังไม่หมดอายุ
-    if _PLAYERS_CACHE is not None and (now - _PLAYERS_CACHE_TIME) < _CACHE_EXPIRATION_SECONDS:
-        return _PLAYERS_CACHE
-
-    client = get_client()
-    if not client:
-        return _PLAYERS_CACHE or []
-
-    all_players = []
-    try:
-        spreadsheet = client.open_by_key(SPREADSHEET_ID)
-        for worksheet in spreadsheet.worksheets():
-            if worksheet.title == "History":
-                continue
-            all_rows = worksheet.get_all_values()
-            if not all_rows or len(all_rows) < 2:
-                continue
-
-            for row in all_rows[1:]:
-                if not row or len(row) < 2:
-                    continue
-
-                player_id = str(row[1]).strip()
-                if player_id:
-                    padded_row = row + [""] * (8 - len(row)) if len(row) < 8 else row
-                    name = str(padded_row[2]).strip() if str(padded_row[2]).strip() else player_id
-                    score = safe_int(padded_row[4])
-                    plays_used = safe_int(padded_row[7])
-
-                    all_players.append({
-                        'player_id': player_id,
-                        'code_name': name,
-                        'name': name,
-                        'total_score': score,
-                        'free_plays_used': plays_used,
-                        'sheet_name': worksheet.title
-                    })
-
-        # บันทึกลง Cache
-        _PLAYERS_CACHE = all_players
-        _PLAYERS_CACHE_TIME = now
-    except Exception as e:
-        print(f"❌ เกิด Error ขณะดึงข้อมูล All Players: {e}")
-        return _PLAYERS_CACHE or []
-
-    return all_players
 
 # 5. ฟังก์ชันบันทึกประวัติการเล่นลง Google Sheet "History"
 def save_game_history(player_id, cards, combo, score_gained, final_score):
@@ -280,7 +238,7 @@ def save_game_history(player_id, cards, combo, score_gained, final_score):
             worksheet = spreadsheet.add_worksheet(title="History", rows="1000", cols="6")
             worksheet.append_row(["Date", "Player ID", "Cards", "Combo", "Score Gained", "Final Score"])
 
-        now_str = get_now_th().strftime("%Y-%m-%d %H:%M:%S")  # 🇹🇭 บันทึกเวลาประวัติเป็นเวลาไทย
+        now_str = get_now_th().strftime("%Y-%m-%d %H:%M:%S")
         cards_str = ", ".join(cards) if isinstance(cards, list) else str(cards)
         clean_id = str(player_id).strip().upper()
 
@@ -294,7 +252,6 @@ def save_game_history(player_id, cards, combo, score_gained, final_score):
         ])
         print(f"📜 เซฟประวัติลง Sheet History สำเร็จ: {clean_id}")
         
-        # 🔄 เคลียร์ Cache History
         clear_cache()
         return True
     except Exception as e:
@@ -308,7 +265,6 @@ def get_history_from_sheets(player_id=None, limit=500):
 
     search_id = str(player_id).strip().upper() if player_id else None
 
-    # ดึงข้อมูลจาก Cache ถ้า Cache ยังใช้ได้
     if _HISTORY_CACHE is not None and (now - _HISTORY_CACHE_TIME) < _CACHE_EXPIRATION_SECONDS:
         raw_history = _HISTORY_CACHE
     else:
@@ -338,14 +294,12 @@ def get_history_from_sheets(player_id=None, limit=500):
                         "final_score": safe_int(row[5])
                     })
 
-            # อัปเดต Cache
             _HISTORY_CACHE = raw_history
             _HISTORY_CACHE_TIME = now
         except Exception as e:
             print(f"❌ เกิด Error ขณะดึง History จาก Sheets: {e}")
             return []
 
-    # กรองข้อมูลตาม player_id (ถ้ามีระบุ)
     if search_id:
         filtered = [h for h in raw_history if h["player_id"] == search_id]
         return filtered[:limit]
