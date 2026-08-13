@@ -559,7 +559,7 @@ def ranking():
 
 
 # -------------------------------------------------------------
-# หน้าแสดงประวัติการเล่น (ดึงจาก DB หรือ Google Sheets)
+# หน้าแสดงประวัติการเล่น
 # -------------------------------------------------------------
 @app.route("/history")
 def history():
@@ -571,25 +571,46 @@ def history():
         player_name = session.get("player_name", "ผู้เล่น")
         
         history_logs = []
+        
+        # 1. ลองดึงจาก SQLite DB ก่อน
         try:
-            history_logs = get_player_history(player_id, limit=30)
+            history_logs = get_player_history(player_id, limit=30) or []
         except Exception as e:
             print(f"⚠️ Error reading history from DB: {e}")
 
-        # ถ้าใน DB ไม่มีประวัติ ให้ดึงจาก Google Sheets แทน
+        # 2. ถ้าใน DB ไม่มีข้อมูล ให้ดึงจาก Google Sheets
         if not history_logs:
             try:
-                all_sheets_hist = get_history_from_sheets(player_id=player_id, limit=30)
+                raw_sheets_hist = get_history_from_sheets(player_id=player_id, limit=50) or []
                 history_logs = []
-                for item in all_sheets_hist:
+                
+                for item in raw_sheets_hist:
+                    if not item:
+                        continue
+                    
+                    # รองรับทั้งแบบ Dict และ List/Tuple
                     if isinstance(item, dict):
                         history_logs.append({
-                            'timestamp': item.get('date') or item.get('timestamp') or item.get('Date') or '',
-                            'cards': item.get('cards') or item.get('Cards') or '',
-                            'combo': item.get('combo') or item.get('Combo') or '',
+                            'date': item.get('date') or item.get('timestamp') or item.get('Date') or '',
+                            'cards': item.get('cards') or item.get('Cards') or '-',
+                            'combo': item.get('combo') or item.get('Combo') or 'High Card',
                             'score_gained': item.get('score_gained') or item.get('Score Gained') or 0,
                             'final_score': item.get('final_score') or item.get('Final Score') or 0
                         })
+                    elif isinstance(item, (list, tuple)) and len(item) >= 6:
+                        # [Date, Player ID, Cards, Combo, Score Gained, Final Score]
+                        if str(item[1]).strip().upper() == player_id:
+                            history_logs.append({
+                                'date': item[0],
+                                'cards': item[2],
+                                'combo': item[3],
+                                'score_gained': item[4],
+                                'final_score': item[5]
+                            })
+                            
+                # Reverse เพื่อให้รายการใหม่ล่าสุดอยู่ด้านบนสุด
+                history_logs.reverse()
+                
             except Exception as sheet_err:
                 print(f"⚠️ Error fetching history from Sheets: {sheet_err}")
 
@@ -602,7 +623,6 @@ def history():
     except Exception as e:
         print(f"❌ History Route Error: {e}")
         return redirect("/home")
-
 
 # -------------------------------------------------------------
 # 3. Admin Dashboard
