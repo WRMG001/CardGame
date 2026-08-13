@@ -404,7 +404,7 @@ def game():
 
 
 # -------------------------------------------------------------
-# 2. API สุ่มไพ่
+# 2. API สุ่มไพ่ (ปรับปรุงบันทึกข้อมูลลง Tab History ของ Sheets)
 # -------------------------------------------------------------
 @app.route("/api/play", methods=["POST"])
 def api_play():
@@ -453,6 +453,7 @@ def api_play():
         new_plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - new_free_plays_used)
         next_luck = result.get("next_player_luck", current_luck)
 
+        # 1. อัปเดตข้อมูลผู้เล่นใน Sheet หมวดหมู่เดิม (เช่น Tab BL, BA, W)
         if player_sheet_info.get("sheet_name") and player_sheet_info.get("row_idx"):
             try:
                 updated_data = {
@@ -466,6 +467,7 @@ def api_play():
             except Exception as update_err:
                 print(f"⚠️ Sheets Update Error: {update_err}")
 
+        # 2. บันทึกประวัติการสุ่ม (ลง SQLite / Local DB)
         try:
             log_game_play(
                 player_id=player_id,
@@ -474,17 +476,21 @@ def api_play():
                 score_gained=net_score_gained,
                 final_score=new_total_score
             )
-            
-            if 'save_game_history' in globals():
-                save_game_history(
-                    player_id=player_id,
-                    cards=result.get("cards", []),
-                    combo=combo_title,
-                    score_gained=net_score_gained,
-                    final_score=new_total_score
-                )
         except Exception as log_err:
-            print(f"⚠️ Log Warning: {log_err}")
+            print(f"⚠️ Local Log Warning: {log_err}")
+
+        # 3. 🚨 บันทึกประวัติลงใน Google Sheets Tab "History" เพิ่มเติม
+        try:
+            save_game_history(
+                player_id=player_id,
+                cards=result.get("cards", []),
+                combo=combo_title,
+                score_gained=net_score_gained,
+                final_score=new_total_score
+            )
+            print(f"✅ Save History to Google Sheets Success: {player_id}")
+        except Exception as sheets_hist_err:
+            print(f"⚠️ Sheets History Append Warning: {sheets_hist_err}")
 
         session["total_score"] = new_total_score
         session["player_luck"] = next_luck
