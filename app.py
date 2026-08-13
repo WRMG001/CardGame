@@ -578,24 +578,17 @@ def history():
         
         history_logs = []
         
-        # 1. ลองดึงจาก SQLite DB ก่อน
+        # 🟢 1. ดึงข้อมูลจาก Google Sheets เป็นหลักก่อน
         try:
-            history_logs = get_player_history(player_id, limit=30) or []
-        except Exception as e:
-            print(f"⚠️ Error reading history from DB: {e}")
-
-        # 2. ถ้าใน DB ไม่มีข้อมูล ให้ดึงจาก Google Sheets
-        if not history_logs:
-            try:
-                raw_sheets_hist = get_history_from_sheets(player_id=player_id, limit=50) or []
-                history_logs = []
+            raw_sheets_hist = get_history_from_sheets(player_id=player_id, limit=100) or []
+            
+            for item in raw_sheets_hist:
+                if not item:
+                    continue
                 
-                for item in raw_sheets_hist:
-                    if not item:
-                        continue
-                    
-                    # รองรับทั้งแบบ Dict และ List/Tuple
-                    if isinstance(item, dict):
+                if isinstance(item, dict):
+                    p_id = str(item.get('player_id') or item.get('Player ID') or '').strip().upper()
+                    if not p_id or p_id == player_id:
                         history_logs.append({
                             'date': item.get('date') or item.get('timestamp') or item.get('Date') or '',
                             'cards': item.get('cards') or item.get('Cards') or '-',
@@ -603,22 +596,31 @@ def history():
                             'score_gained': item.get('score_gained') or item.get('Score Gained') or 0,
                             'final_score': item.get('final_score') or item.get('Final Score') or 0
                         })
-                    elif isinstance(item, (list, tuple)) and len(item) >= 6:
-                        # [Date, Player ID, Cards, Combo, Score Gained, Final Score]
-                        if str(item[1]).strip().upper() == player_id:
-                            history_logs.append({
-                                'date': item[0],
-                                'cards': item[2],
-                                'combo': item[3],
-                                'score_gained': item[4],
-                                'final_score': item[5]
-                            })
-                            
-                # Reverse เพื่อให้รายการใหม่ล่าสุดอยู่ด้านบนสุด
-                history_logs.reverse()
-                
-            except Exception as sheet_err:
-                print(f"⚠️ Error fetching history from Sheets: {sheet_err}")
+                elif isinstance(item, (list, tuple)) and len(item) >= 6:
+                    if str(item[1]).strip().upper() == player_id:
+                        history_logs.append({
+                            'date': item[0],
+                            'cards': item[2],
+                            'combo': item[3],
+                            'score_gained': item[4],
+                            'final_score': item[5]
+                        })
+        except Exception as sheet_err:
+            print(f"⚠️ Error fetching history from Sheets: {sheet_err}")
+
+        # 🟡 2. ถ้า Google Sheets ไม่มีข้อมูล/ดึงไม่ผ่าน ค่อย Fallback ไป Local DB
+        if not history_logs:
+            try:
+                history_logs = get_player_history(player_id, limit=30) or []
+            except Exception as db_err:
+                print(f"⚠️ Error reading history from DB: {db_err}")
+
+        # 🔴 3. เรียงลำดับจากล่าสุดขึ้นก่อน (ตาม Timestamp)
+        history_logs = sorted(
+            history_logs, 
+            key=lambda x: str(x.get('date', '')), 
+            reverse=True
+        )
 
         return render_template(
             "history.html",
