@@ -47,6 +47,11 @@ COMBO_RANKING = {
 # ==========================================
 # 🛠️ HELPER FUNCTIONS
 # ==========================================
+def get_now_th():
+    """ดึงเวลาปัจจุบันในโซนเวลาประเทศไทย (GMT+7)"""
+    tz_th = timezone(timedelta(hours=7))
+    return datetime.now(tz_th)
+
 def clean_combo_name(combo_str):
     """ลบ Emoji และอักขระพิเศษออกจากชื่อคอมโบ เพื่อให้สามารถเทียบกับ COMBO_RANKING ได้ตรงกัน"""
     if not combo_str:
@@ -127,7 +132,7 @@ def logout():
 
 
 # -------------------------------------------------------------
-# 🏠 HOME ROUTE (ฉบับแก้ไขการจัดอันดับคอมโบ และกรองผู้เล่นซ้ำ)
+# 🏠 HOME ROUTE
 # -------------------------------------------------------------
 @app.route("/home")
 def home():
@@ -164,12 +169,17 @@ def home():
             print(f"⚠️ Error get_player_data in home: {e}")
 
         total_score = player.get("total_score", 0)
-        free_plays_used = player.get("free_plays_used", 0)
-
-        # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7)
-        tz_th = timezone(timedelta(hours=7))
-        now_th = datetime.now(tz_th)
+        
+        # ⏰ 3. คำนวณวันที่ปัจจุบัน (เวลาไทย GMT+7) และปรับค่าสิทธิ์เล่นของวันใหม่
+        now_th = get_now_th()
         today_date = now_th.date()
+        today_str = now_th.strftime("%Y-%m-%d")
+
+        last_play_date = player.get("last_play_date", "")
+        if str(last_play_date).strip() != today_str:
+            free_plays_used = 0
+        else:
+            free_plays_used = player.get("free_plays_used", 0)
 
         try:
             all_history = get_history_from_sheets() or []
@@ -249,7 +259,6 @@ def home():
             cleaned_combo = clean_combo_name(raw_combo_name)
             combo_weight = COMBO_RANKING.get(cleaned_combo, 0)
             
-            # เผื่อกรณีคลีนแล้วยังไม่ตรง ให้ค้นจากคำย่อยใน Dictionary
             if combo_weight == 0 and cleaned_combo != "High Card":
                 for key_combo, weight in COMBO_RANKING.items():
                     if key_combo.lower() in raw_combo_name.lower():
@@ -259,7 +268,7 @@ def home():
             current_candidate = {
                 "player_id": p_id,
                 "player_name": p_name,
-                "combo": raw_combo_name, # แสดงชื่อดั้งเดิมรวมไอคอนบนหน้าเว็บ
+                "combo": raw_combo_name,
                 "combo_weight": combo_weight,
                 "score_gained": int(score_gained),
                 "timestamp": log_time_str
@@ -291,6 +300,9 @@ def home():
             reverse=True
         )[:5]
 
+        bought_plays = player.get("bought_plays_used", 0)
+        remaining_plays = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
+
         return render_template(
             "home.html",
             player_id=player_id,
@@ -299,6 +311,7 @@ def home():
             event_luck=EVENT_LUCK,
             total_score=total_score,
             free_plays_used=free_plays_used,
+            remaining_plays=remaining_plays,
             top10_daily=top10_daily,
             top5_combos=sorted_combos
         )
@@ -310,6 +323,7 @@ def home():
             player_name="ผู้เล่น",
             total_score=0,
             free_plays_used=0,
+            remaining_plays=DAILY_PLAY_LIMIT,
             top10_daily=[],
             top5_combos=[]
         )
@@ -331,6 +345,8 @@ def game():
         total_score = 0
         player_luck = 0.0
 
+        today_str = get_now_th().strftime("%Y-%m-%d")
+
         player_sheet_info = None
         try:
             player_sheet_info = get_player_data_safe(player_id)
@@ -341,7 +357,12 @@ def game():
             total_score = player_sheet_info.get("total_score", 0)
             player_luck = player_sheet_info.get("player_luck", 0.0)
             
-            free_plays_used = player_sheet_info.get("free_plays_used", 0)
+            last_play_date = player_sheet_info.get("last_play_date", "")
+            if str(last_play_date).strip() != today_str:
+                free_plays_used = 0
+            else:
+                free_plays_used = player_sheet_info.get("free_plays_used", 0)
+
             bought_plays = player_sheet_info.get("bought_plays_used", 0)
             plays_left = max(0, (DAILY_PLAY_LIMIT + bought_plays) - free_plays_used)
         else:
@@ -397,10 +418,8 @@ def api_play():
         if not player_sheet_info:
             return jsonify({"success": False, "message": "ไม่พบข้อมูลผู้เล่นในระบบ Google Sheets (กรุณาลองใหม่อีกครั้ง)"}), 400
 
-        tz_th = timezone(timedelta(hours=7))
-        now_th = datetime.now(tz_th)
-        today_str = now_th.strftime("%Y-%m-%d")
-        last_play_date = player_sheet_info.get("last_play_date", "")
+        today_str = get_now_th().strftime("%Y-%m-%d")
+        last_play_date = str(player_sheet_info.get("last_play_date", "")).strip()
 
         bought_plays = player_sheet_info.get("bought_plays_used", 0)  
         if last_play_date != today_str:
@@ -540,7 +559,7 @@ def ranking():
 
 
 # -------------------------------------------------------------
-# หน้าแสดงประวัติการเล่น
+# หน้าแสดงประวัติการเล่น (ดึงจาก DB หรือ Google Sheets)
 # -------------------------------------------------------------
 @app.route("/history")
 def history():
@@ -551,11 +570,28 @@ def history():
         player_id = str(session.get("player_id", "")).strip().upper()
         player_name = session.get("player_name", "ผู้เล่น")
         
+        history_logs = []
         try:
-            history_logs = get_player_history(player_id, limit=20)
+            history_logs = get_player_history(player_id, limit=30)
         except Exception as e:
             print(f"⚠️ Error reading history from DB: {e}")
-            history_logs = []
+
+        # ถ้าใน DB ไม่มีประวัติ ให้ดึงจาก Google Sheets แทน
+        if not history_logs:
+            try:
+                all_sheets_hist = get_history_from_sheets(player_id=player_id, limit=30)
+                history_logs = []
+                for item in all_sheets_hist:
+                    if isinstance(item, dict):
+                        history_logs.append({
+                            'timestamp': item.get('date') or item.get('timestamp') or item.get('Date') or '',
+                            'cards': item.get('cards') or item.get('Cards') or '',
+                            'combo': item.get('combo') or item.get('Combo') or '',
+                            'score_gained': item.get('score_gained') or item.get('Score Gained') or 0,
+                            'final_score': item.get('final_score') or item.get('Final Score') or 0
+                        })
+            except Exception as sheet_err:
+                print(f"⚠️ Error fetching history from Sheets: {sheet_err}")
 
         return render_template(
             "history.html",
@@ -839,7 +875,7 @@ def get_grouped_players():
     try:
         all_players = get_all_players_data()
         
-        # 🎯 1. Map ค่า Role ทั้งแบบชื่อเต็ม Prefix ย่อ และรองรับตัวพหูพจน์ (เช่น PARTNERS)
+        # 🎯 1. Map ค่า Role ทั้งแบบชื่อเต็ม Prefix ย่อ และรองรับตัวพหูพจน์
         role_map = {
             'C': 'Customer', 'CUSTOMER': 'Customer', 'CUSTOMERS': 'Customer',
             'P': 'Partner', 'PARTNER': 'Partner', 'PARTNERS': 'Partner',
@@ -857,6 +893,8 @@ def get_grouped_players():
             'Guard': [], 'Owner': [], 'อื่นๆ': []
         }
         
+        today_str = get_now_th().strftime("%Y-%m-%d")
+
         for p in all_players:
             if not p:
                 continue
@@ -895,10 +933,14 @@ def get_grouped_players():
             prefix_match = re.match(r"^([A-Z]+)", char_id)
             char_prefix = prefix_match.group(1) if prefix_match else ''
 
-            # 🎯 3. ระบุกลุ่ม: ตรวจสอบ p_role ก่อน ถ้าไม่มี ให้ตรวจสอบ char_prefix
             target_group = role_map.get(p_role) or role_map.get(char_prefix) or 'อื่นๆ'
 
-            free_used = get_val(['free_plays_used', 'plays_used'], 0)
+            last_p_date = str(get_val(['last_play_date', 'last_date'], '')).strip()
+            if last_p_date != today_str:
+                free_used = 0
+            else:
+                free_used = get_val(['free_plays_used', 'plays_used'], 0)
+
             bought_used = get_val(['bought_plays_used'], 0)
             try:
                 quota_left = max(0, (DAILY_PLAY_LIMIT + int(bought_used)) - int(free_used))
@@ -920,7 +962,7 @@ def get_grouped_players():
         for group_key in grouped:
             grouped[group_key] = sorted(grouped[group_key], key=lambda x: x['total_score'], reverse=True)
 
-        # 🎯 5. กรองเอาเฉพาะกลุ่มที่มีผู้เล่นอย่างน้อย 1 คนขึ้นไป (ตัดกลุ่มว่างออก)
+        # 🎯 5. กรองเอาเฉพาะกลุ่มที่มีผู้เล่นอย่างน้อย 1 คนขึ้นไป
         filtered_grouped = {k: v for k, v in grouped.items() if len(v) > 0}
 
         return filtered_grouped
