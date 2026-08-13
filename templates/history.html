@@ -18,9 +18,12 @@
     {% if history_logs and history_logs|length > 0 %}
       <div style="display: flex; flex-direction: column; gap: 12px; max-height: 520px; overflow-y: auto; padding-right: 4px;">
         {% for log in history_logs %}
-          {% set gained = (log.score_gained if log.score_gained is defined and log.score_gained is not none else (log.round_score or log.score or 0))|int %}
-          {% set final_tot = (log.final_score if log.final_score is defined and log.final_score is not none else (log.total_score or 0))|int %}
-          {% set combo_text = (log.combo or log.combo_pattern or 'High Card')|string %}
+          {# ดึงค่าคะแนนและรองรับทั้ง Dict และ Key หลากหลายรูปแบบ #}
+          {% set gained = (log.get('score_gained') if log.get is defined and log.get('score_gained') is not none else log.score_gained) | default(log.round_score) | default(log.score) | default(0) | int %}
+          {% set final_tot = (log.get('final_score') if log.get is defined and log.get('final_score') is not none else log.final_score) | default(log.total_score) | default(0) | int %}
+          {% set combo_text = (log.get('combo') if log.get is defined and log.get('combo') is not none else log.combo) | default(log.combo_pattern) | default('High Card') | string %}
+          {% set time_display = (log.get('date') if log.get is defined and log.get('date') is not none else log.date) | default(log.timestamp) | default(log.datetime) | default('ไม่ระบุเวลา') %}
+          {% set cards_display = (log.get('cards') if log.get is defined and log.get('cards') is not none else log.cards) | default(log.cards_played) | default('-') %}
           
           <!-- คำนวณสีขอบตามคะแนน/คอมโบ -->
           {% set border_color = '#ff4d6d' if gained < 0 else ('#ffd700' if gained >= 40 else '#00f5d4') %}
@@ -30,7 +33,7 @@
             
             <!-- บรรทัดบน: เวลา และ คะแนนรวม -->
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #bfa181; margin-bottom: 8px;">
-              <span>🕒 {{ log.date or log.timestamp or log.datetime or 'ไม่ระบุเวลา' }}</span>
+              <span>🕒 {{ time_display }}</span>
               <span style="color: #ffd700; font-weight: bold; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 12px; border: 1px solid #4a1519;">
                 คะแนนรวม: {{ "{:,}".format(final_tot) }}
               </span>
@@ -40,7 +43,7 @@
             <div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
               <span style="color: #bfa181; font-size: 14px;">🃏 ไพ่ที่ได้:</span> 
               <span class="card-display" style="font-family: monospace; letter-spacing: 1px; font-size: 1.05rem;">
-                {{ log.cards or log.cards_played or '-' }}
+                {{ cards_display }}
               </span>
             </div>
 
@@ -83,9 +86,9 @@
     cardElements.forEach(el => {
       let html = el.innerHTML;
       // แปลงดอกหัวใจ ♥ และข้าวหลามตัด ♦ ให้เป็นสีแดงสด
-      html = html.replace(/([♥♦][0-9A-JKQ]+|[0-9A-JKQ]+[♥♦])/g, '<span style="color: #ff4d6d; font-weight: bold;">$1</span>');
-      // แปลงดอกโพดำ ♠ และโพแดง/ดอกจิก ♣ ให้เป็นสีขาวนวล
-      html = html.replace(/([♠♣][0-9A-JKQ]+|[0-9A-JKQ]+[♠♣])/g, '<span style="color: #f3e8d3; font-weight: bold;">$1</span>');
+      html = html.replace(/([♥♦][0-9A-JKQ10]+|[0-9A-JKQ10]+[♥♦])/g, '<span style="color: #ff4d6d; font-weight: bold;">$1</span>');
+      // แปลงดอกโพดำ ♠ และดอกจิก ♣ ให้เป็นสีขาวนวล
+      html = html.replace(/([♠♣][0-9A-JKQ10]+|[0-9A-JKQ10]+[♠♣])/g, '<span style="color: #f3e8d3; font-weight: bold;">$1</span>');
       el.innerHTML = html;
     });
   });
